@@ -1,0 +1,267 @@
+#!/usr/bin/env node
+
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+import { TickTickClient } from './ticktick-client.js';
+
+const clientId = process.env.TICKTICK_CLIENT_ID;
+const clientSecret = process.env.TICKTICK_CLIENT_SECRET;
+
+const client = new TickTickClient(null, clientId, clientSecret);
+
+const server = new McpServer({
+  name: 'ticktick',
+  version: '1.0.0',
+});
+
+// ─── Projects ───────────────────────────────────────────────────────────────
+
+server.tool(
+  'list_projects',
+  'List all TickTick projects (task lists)',
+  {},
+  async () => {
+    const projects = await client.listProjects();
+    return { content: [{ type: 'text', text: JSON.stringify(projects, null, 2) }] };
+  }
+);
+
+server.tool(
+  'get_project',
+  'Get a TickTick project by ID',
+  { projectId: z.string().describe('Project ID') },
+  async ({ projectId }) => {
+    const project = await client.getProject(projectId);
+    return { content: [{ type: 'text', text: JSON.stringify(project, null, 2) }] };
+  }
+);
+
+server.tool(
+  'get_project_with_data',
+  'Get a TickTick project with all its tasks and kanban columns',
+  { projectId: z.string().describe('Project ID') },
+  async ({ projectId }) => {
+    const data = await client.getProjectWithData(projectId);
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'create_project',
+  'Create a new TickTick project (task list)',
+  {
+    name: z.string().describe('Project name'),
+    color: z.string().optional().describe('Color hex code, e.g. "#4772FA"'),
+    viewMode: z.enum(['list', 'kanban', 'timeline']).optional().describe('View mode'),
+    kind: z.enum(['TASK', 'NOTE']).optional().describe('Project kind'),
+  },
+  async (params) => {
+    const project = await client.createProject(params);
+    return { content: [{ type: 'text', text: JSON.stringify(project, null, 2) }] };
+  }
+);
+
+server.tool(
+  'update_project',
+  'Update an existing TickTick project',
+  {
+    projectId: z.string().describe('Project ID'),
+    name: z.string().optional().describe('New name'),
+    color: z.string().optional().describe('New color hex'),
+    viewMode: z.enum(['list', 'kanban', 'timeline']).optional().describe('New view mode'),
+    kind: z.enum(['TASK', 'NOTE']).optional().describe('New kind'),
+  },
+  async ({ projectId, ...updates }) => {
+    const project = await client.updateProject(projectId, updates);
+    return { content: [{ type: 'text', text: JSON.stringify(project, null, 2) }] };
+  }
+);
+
+server.tool(
+  'delete_project',
+  'Delete a TickTick project',
+  { projectId: z.string().describe('Project ID to delete') },
+  async ({ projectId }) => {
+    await client.deleteProject(projectId);
+    return { content: [{ type: 'text', text: `Project ${projectId} deleted.` }] };
+  }
+);
+
+// ─── Tasks ──────────────────────────────────────────────────────────────────
+
+server.tool(
+  'get_task',
+  'Get a specific task by project ID and task ID',
+  {
+    projectId: z.string().describe('Project ID containing the task'),
+    taskId: z.string().describe('Task ID'),
+  },
+  async ({ projectId, taskId }) => {
+    const task = await client.getTask(projectId, taskId);
+    return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
+  }
+);
+
+server.tool(
+  'create_task',
+  'Create a new task in TickTick. Supports title, content, dates, priority (0=none, 1=low, 3=medium, 5=high), tags, subtasks (items), reminders, and recurrence (repeatFlag in iCal RRULE format).',
+  {
+    title: z.string().describe('Task title'),
+    projectId: z.string().optional().describe('Project ID (uses inbox if omitted)'),
+    content: z.string().optional().describe('Task content/notes (supports markdown)'),
+    desc: z.string().optional().describe('Task description'),
+    startDate: z.string().optional().describe('Start date in ISO 8601 format, e.g. "2026-02-18T09:00:00+0000"'),
+    dueDate: z.string().optional().describe('Due date in ISO 8601 format'),
+    isAllDay: z.boolean().optional().describe('Whether this is an all-day task'),
+    priority: z.number().optional().describe('Priority: 0=none, 1=low, 3=medium, 5=high'),
+    tags: z.array(z.string()).optional().describe('Tags as array of strings, e.g. ["work", "urgent"]'),
+    timeZone: z.string().optional().describe('Time zone, e.g. "America/Los_Angeles"'),
+    reminders: z.array(z.string()).optional().describe('Reminders in iCal trigger format, e.g. ["TRIGGER:PT0S", "TRIGGER:P0DT9H0M0S"]'),
+    repeatFlag: z.string().optional().describe('Recurrence rule in iCal RRULE format, e.g. "RRULE:FREQ=DAILY;INTERVAL=1"'),
+    items: z
+      .array(
+        z.object({
+          title: z.string().describe('Subtask title'),
+          status: z.number().optional().describe('0=normal, 1=completed'),
+          startDate: z.string().optional().describe('Subtask start date'),
+          isAllDay: z.boolean().optional().describe('All-day subtask'),
+          sortOrder: z.number().optional().describe('Sort position'),
+          timeZone: z.string().optional().describe('Time zone'),
+        })
+      )
+      .optional()
+      .describe('Subtask/checklist items'),
+  },
+  async (params) => {
+    const task = await client.createTask(params);
+    return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
+  }
+);
+
+server.tool(
+  'update_task',
+  'Update an existing task. Provide only the fields you want to change.',
+  {
+    taskId: z.string().describe('Task ID to update'),
+    projectId: z.string().describe('Project ID containing the task'),
+    title: z.string().optional().describe('New title'),
+    content: z.string().optional().describe('New content/notes'),
+    desc: z.string().optional().describe('New description'),
+    startDate: z.string().optional().describe('New start date (ISO 8601)'),
+    dueDate: z.string().optional().describe('New due date (ISO 8601)'),
+    isAllDay: z.boolean().optional().describe('All-day flag'),
+    priority: z.number().optional().describe('Priority: 0=none, 1=low, 3=medium, 5=high'),
+    tags: z.array(z.string()).optional().describe('New tags'),
+    timeZone: z.string().optional().describe('Time zone'),
+    reminders: z.array(z.string()).optional().describe('New reminders'),
+    repeatFlag: z.string().optional().describe('New recurrence rule'),
+    items: z
+      .array(
+        z.object({
+          title: z.string().describe('Subtask title'),
+          status: z.number().optional().describe('0=normal, 1=completed'),
+          startDate: z.string().optional().describe('Subtask start date'),
+          isAllDay: z.boolean().optional().describe('All-day subtask'),
+          sortOrder: z.number().optional().describe('Sort position'),
+          timeZone: z.string().optional().describe('Time zone'),
+        })
+      )
+      .optional()
+      .describe('Updated subtask/checklist items'),
+  },
+  async ({ taskId, ...updates }) => {
+    const task = await client.updateTask(taskId, updates);
+    return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
+  }
+);
+
+server.tool(
+  'complete_task',
+  'Mark a task as completed',
+  {
+    projectId: z.string().describe('Project ID'),
+    taskId: z.string().describe('Task ID to complete'),
+  },
+  async ({ projectId, taskId }) => {
+    await client.completeTask(projectId, taskId);
+    return { content: [{ type: 'text', text: `Task ${taskId} marked as completed.` }] };
+  }
+);
+
+server.tool(
+  'delete_task',
+  'Delete a task from TickTick',
+  {
+    projectId: z.string().describe('Project ID'),
+    taskId: z.string().describe('Task ID to delete'),
+  },
+  async ({ projectId, taskId }) => {
+    await client.deleteTask(projectId, taskId);
+    return { content: [{ type: 'text', text: `Task ${taskId} deleted.` }] };
+  }
+);
+
+server.tool(
+  'batch_create_tasks',
+  'Create multiple tasks at once. Each task object supports the same fields as create_task.',
+  {
+    tasks: z
+      .array(
+        z.object({
+          title: z.string().describe('Task title'),
+          projectId: z.string().optional().describe('Project ID'),
+          content: z.string().optional().describe('Content/notes'),
+          desc: z.string().optional().describe('Description'),
+          startDate: z.string().optional().describe('Start date (ISO 8601)'),
+          dueDate: z.string().optional().describe('Due date (ISO 8601)'),
+          isAllDay: z.boolean().optional().describe('All-day task'),
+          priority: z.number().optional().describe('Priority: 0/1/3/5'),
+          tags: z.array(z.string()).optional().describe('Tags'),
+          timeZone: z.string().optional().describe('Time zone'),
+          reminders: z.array(z.string()).optional().describe('Reminders'),
+          repeatFlag: z.string().optional().describe('Recurrence rule'),
+          items: z
+            .array(
+              z.object({
+                title: z.string(),
+                status: z.number().optional(),
+                startDate: z.string().optional(),
+                isAllDay: z.boolean().optional(),
+                sortOrder: z.number().optional(),
+                timeZone: z.string().optional(),
+              })
+            )
+            .optional()
+            .describe('Subtasks'),
+        })
+      )
+      .describe('Array of task objects to create'),
+  },
+  async ({ tasks }) => {
+    const result = await client.batchCreateTasks(tasks);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ─── Start ──────────────────────────────────────────────────────────────────
+
+async function main() {
+  // Pre-check auth on startup so errors are caught early
+  try {
+    const { getAccessToken } = await import('./auth.js');
+    await getAccessToken(clientId, clientSecret);
+  } catch (err) {
+    console.error(`Auth error: ${err.message}`);
+    process.exit(1);
+  }
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error('TickTick MCP server running on stdio');
+}
+
+main().catch((err) => {
+  console.error('Fatal:', err);
+  process.exit(1);
+});
