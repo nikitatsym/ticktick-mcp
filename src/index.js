@@ -311,36 +311,8 @@ server.tool(
 
 async function main() {
   log(`Starting... (node ${process.version}, pid ${process.pid})`);
-  log(`stdin isTTY=${process.stdin.isTTY}, stdout isTTY=${process.stdout.isTTY}`);
 
   const transport = new StdioServerTransport();
-
-  // Monitor what the transport receives/sends
-  const origOnMessage = transport.onmessage;
-  Object.defineProperty(transport, 'onmessage', {
-    set(fn) {
-      origOnMessage; // keep reference
-      Object.defineProperty(transport, '_realOnMessage', { value: fn, writable: true });
-      Object.defineProperty(transport, 'onmessage', {
-        get() { return transport._wrappedOnMessage; },
-        set(fn2) { transport._realOnMessage = fn2; },
-        configurable: true,
-      });
-      transport._wrappedOnMessage = (msg) => {
-        log('← recv:', msg.method || `response:${msg.id}`);
-        return transport._realOnMessage(msg);
-      };
-    },
-    get() { return undefined; },
-    configurable: true,
-  });
-
-  const origSend = transport.send.bind(transport);
-  transport.send = (msg) => {
-    log('→ send:', msg.method || `response:${msg.id}`);
-    return origSend(msg);
-  };
-
   await server.connect(transport);
   log('Server connected, waiting for messages on stdio');
 }
