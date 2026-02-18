@@ -6,6 +6,7 @@ export class TickTickClient {
     this._clientId = clientId;
     this._clientSecret = clientSecret;
     this._accessToken = null;
+    this._inboxId = null;
   }
 
   async _token() {
@@ -67,6 +68,35 @@ export class TickTickClient {
     }
     // Some endpoints (complete, delete) return empty body
     return null;
+  }
+
+  // ── Inbox ───────────────────────────────────────────────
+
+  /**
+   * Get the inbox project ID. Discovery strategy:
+   * 1. Cached value
+   * 2. Create a temp task without projectId → read projectId from response → delete it
+   */
+  async getInboxId() {
+    if (this._inboxId) return this._inboxId;
+
+    // Create a throwaway task to discover inbox ID
+    const tempTask = await this.createTask({ title: '__ticktick_mcp_inbox_probe__' });
+    this._inboxId = tempTask.projectId;
+
+    // Clean up immediately
+    try {
+      await this.deleteTask(tempTask.projectId, tempTask.id);
+    } catch {
+      // best effort
+    }
+
+    return this._inboxId;
+  }
+
+  async getInboxWithData() {
+    const inboxId = await this.getInboxId();
+    return this._request('GET', `/project/${inboxId}/data`);
   }
 
   // ── Projects ──────────────────────────────────────────────

@@ -75,13 +75,20 @@ It will open the browser, authorize, and print the tokens. Copy them to your ser
 
 ## Available Tools
 
+### Inbox
+
+| Tool | Description |
+|------|-------------|
+| `get_inbox` | Get the Inbox with all its tasks (Inbox is NOT in `list_projects`) |
+| `get_inbox_id` | Get the inbox project ID (format: `inbox<userId>`) |
+
 ### Projects
 
 | Tool | Description |
 |------|-------------|
-| `list_projects` | List all projects |
+| `list_projects` | List all projects (does NOT include Inbox) |
 | `get_project` | Get project by ID |
-| `get_project_with_data` | Get project with all tasks and kanban columns |
+| `get_project_with_data` | Get project with all tasks and columns |
 | `create_project` | Create a project (name, color, viewMode, kind) |
 | `update_project` | Update a project |
 | `delete_project` | Delete a project |
@@ -91,7 +98,7 @@ It will open the browser, authorize, and print the tokens. Copy them to your ser
 | Tool | Description |
 |------|-------------|
 | `get_task` | Get task by project ID + task ID |
-| `create_task` | Create a task with full options |
+| `create_task` | Create a task (goes to Inbox if no projectId) |
 | `update_task` | Update any task fields |
 | `complete_task` | Mark task as done |
 | `delete_task` | Delete a task |
