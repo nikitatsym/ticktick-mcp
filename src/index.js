@@ -309,28 +309,9 @@ server.tool(
 async function main() {
   log(`Starting... (node ${process.version}, pid ${process.pid})`);
 
-  // Diagnostic: log raw stdin activity
-  let stdinBytes = 0;
-  process.stdin.on('data', (chunk) => {
-    stdinBytes += chunk.length;
-    log(`stdin data: +${chunk.length} bytes (total ${stdinBytes})`);
-  });
-  process.stdin.on('end', () => log('stdin ended'));
-  process.stdin.on('close', () => log('stdin closed'));
-  process.stdin.on('error', (err) => log('stdin error:', err.message));
-
   const transport = new StdioServerTransport();
-
-  // Log transport errors
-  const origOnError = transport._onerror;
-  transport._onerror = (err) => {
-    log('Transport error:', err);
-    origOnError?.(err);
-  };
-
   await server.connect(transport);
   log('Server connected, waiting for messages on stdio');
-  log(`stdin: readable=${process.stdin.readable}, isTTY=${process.stdin.isTTY}`);
 }
 
 main().catch((err) => {
