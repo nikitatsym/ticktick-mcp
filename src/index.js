@@ -20,13 +20,10 @@ const clientSecret = process.env.TICKTICK_CLIENT_SECRET;
 
 const client = new TickTickClient(null, clientId, clientSecret);
 
-const server = new McpServer({
-  name: 'ticktick',
-  version: '1.0.0',
-  capabilities: {
-    logging: {},
-  },
-});
+const server = new McpServer(
+  { name: 'ticktick', version: '1.0.0' },
+  { capabilities: { logging: {} } },
+);
 
 /**
  * Wrap a tool handler with error handling.
