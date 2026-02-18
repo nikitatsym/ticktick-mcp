@@ -15,11 +15,33 @@ const server = new McpServer({
   version: '1.0.0',
 });
 
+// ─── Inbox ──────────────────────────────────────────────────────────────────
+
+server.tool(
+  'get_inbox',
+  'Get the Inbox project with all its tasks. The Inbox is a special built-in project in TickTick that is NOT included in list_projects. Use this tool whenever you need to see inbox tasks. Returns the inbox project data including all tasks.',
+  {},
+  async () => {
+    const data = await client.getInboxWithData();
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'get_inbox_id',
+  'Get the Inbox project ID. Useful when you need the inbox projectId for other operations like complete_task, delete_task, or update_task on inbox tasks. The inbox ID has the format "inbox<userId>" and is unique per user.',
+  {},
+  async () => {
+    const inboxId = await client.getInboxId();
+    return { content: [{ type: 'text', text: JSON.stringify({ inboxId }, null, 2) }] };
+  }
+);
+
 // ─── Projects ───────────────────────────────────────────────────────────────
 
 server.tool(
   'list_projects',
-  'List all TickTick projects (task lists)',
+  'List all TickTick projects (task lists). IMPORTANT: This does NOT include the Inbox — use get_inbox to access inbox tasks.',
   {},
   async () => {
     const projects = await client.listProjects();
@@ -39,7 +61,7 @@ server.tool(
 
 server.tool(
   'get_project_with_data',
-  'Get a TickTick project with all its tasks and kanban columns',
+  'Get a TickTick project with all its tasks and columns. For inbox tasks, use get_inbox instead.',
   { projectId: z.string().describe('Project ID') },
   async ({ projectId }) => {
     const data = await client.getProjectWithData(projectId);
@@ -105,7 +127,7 @@ server.tool(
 
 server.tool(
   'create_task',
-  'Create a new task in TickTick. Supports title, content, dates, priority (0=none, 1=low, 3=medium, 5=high), tags, subtasks (items), reminders, and recurrence (repeatFlag in iCal RRULE format).',
+  'Create a new task in TickTick. If projectId is omitted, the task goes to Inbox. Supports title, content, dates, priority (0=none, 1=low, 3=medium, 5=high), tags, subtasks (items), reminders, and recurrence (repeatFlag in iCal RRULE format). The response includes the assigned projectId (useful for getting the inbox ID).',
   {
     title: z.string().describe('Task title'),
     projectId: z.string().optional().describe('Project ID (uses inbox if omitted)'),
