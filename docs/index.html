@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TickTick MCP — Setup</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #0f172a; color: #e2e8f0;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+  }
+  .card {
+    background: #1e293b; border-radius: 12px; padding: 2rem;
+    max-width: 560px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,.4);
+  }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  .subtitle { color: #94a3b8; margin-bottom: 1.5rem; font-size: .9rem; }
+  label { display: block; font-size: .85rem; color: #94a3b8; margin-bottom: .3rem; margin-top: 1rem; }
+  input {
+    width: 100%; padding: .6rem .75rem; border: 1px solid #334155; border-radius: 6px;
+    background: #0f172a; color: #e2e8f0; font-size: .95rem; outline: none;
+  }
+  input:focus { border-color: #3b82f6; }
+  .btn {
+    display: inline-block; margin-top: 1.5rem; padding: .65rem 1.5rem;
+    background: #3b82f6; color: #fff; border: none; border-radius: 6px;
+    font-size: .95rem; cursor: pointer; font-weight: 500; width: 100%; text-align: center;
+  }
+  .btn:hover { background: #2563eb; }
+  .btn-copy { background: #059669; margin-top: .75rem; }
+  .btn-copy:hover { background: #047857; }
+  pre {
+    background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+    padding: 1rem; overflow-x: auto; font-size: .82rem; line-height: 1.5;
+    white-space: pre; color: #a5f3fc; margin-top: 1rem; max-height: 420px; overflow-y: auto;
+  }
+  .step { color: #94a3b8; font-size: .85rem; margin-bottom: .5rem; }
+  .step a { color: #60a5fa; text-decoration: none; }
+  .step a:hover { text-decoration: underline; }
+  .error { color: #f87171; margin-top: 1rem; font-size: .9rem; }
+  .success { color: #34d399; }
+  .note { color: #94a3b8; font-size: .8rem; margin-top: 1rem; line-height: 1.4; }
+  .hidden { display: none; }
+  .copied { background: #047857; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <!-- Step 1: Enter credentials -->
+  <div id="formView">
+    <h1>TickTick MCP Setup</h1>
+    <p class="subtitle">Authorize access to your TickTick account and get a ready-to-paste config.</p>
+
+    <p class="step">1. Register an app at <a href="https://developer.ticktick.com" target="_blank" rel="noopener">developer.ticktick.com</a></p>
+    <p class="step">2. Set <strong>Redirect URI</strong> to: <code style="color:#a5f3fc">https://nikitatsym.github.io/ticktick-mcp/</code></p>
+    <p class="step">3. Enter your credentials below:</p>
+
+    <label for="clientId">Client ID</label>
+    <input id="clientId" type="text" placeholder="Paste your Client ID" autocomplete="off">
+
+    <label for="clientSecret">Client Secret</label>
+    <input id="clientSecret" type="password" placeholder="Paste your Client Secret" autocomplete="off">
+
+    <div id="formError" class="error hidden"></div>
+
+    <button class="btn" onclick="startAuth()">Authorize with TickTick</button>
+
+    <p class="note">Your credentials are stored in your browser only and cleared after authorization. Nothing is sent to any server except TickTick.</p>
+  </div>
+
+  <!-- Step 2: Result -->
+  <div id="resultView" class="hidden">
+    <h1 class="success">Authorization complete!</h1>
+    <p class="subtitle">Copy this JSON and paste it into your MCP client config (Claude Desktop, MetaMCP, etc.)</p>
+
+    <pre id="configJson"></pre>
+
+    <button class="btn btn-copy" id="copyBtn" onclick="copyConfig()">Copy to clipboard</button>
+
+    <p class="note" id="codeNote" class="hidden"></p>
+
+    <button class="btn" style="background:#475569;margin-top:.5rem" onclick="reset()">Start over</button>
+  </div>
+
+  <!-- Error state -->
+  <div id="errorView" class="hidden">
+    <h1 style="color:#f87171">Authorization failed</h1>
+    <p id="errorMsg" class="error"></p>
+    <button class="btn" style="margin-top:1rem" onclick="reset()">Try again</button>
+  </div>
+</div>
+
+<script>
+const TICKTICK_AUTH_URL = 'https://ticktick.com/oauth/authorize';
+const TICKTICK_TOKEN_URL = 'https://ticktick.com/oauth/token';
+const REDIRECT_URI = 'https://nikitatsym.github.io/ticktick-mcp/';
+const SCOPES = 'tasks:read tasks:write';
+const LS_KEY = 'ticktick_mcp_auth';
+
+function startAuth() {
+  const clientId = document.getElementById('clientId').value.trim();
+  const clientSecret = document.getElementById('clientSecret').value.trim();
+  const errEl = document.getElementById('formError');
+
+  if (!clientId || !clientSecret) {
+    errEl.textContent = 'Both Client ID and Client Secret are required.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  // Save to localStorage for after redirect
+  localStorage.setItem(LS_KEY, JSON.stringify({ clientId, clientSecret }));
+
+  const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  localStorage.setItem(LS_KEY + '_state', state);
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: REDIRECT_URI,
+    response_type: 'code',
+    scope: SCOPES,
+    state: state,
+  });
+
+  window.location.href = TICKTICK_AUTH_URL + '?' + params.toString();
+}
+
+async function handleCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  const error = params.get('error');
+
+  if (error) {
+    showError('TickTick returned an error: ' + (params.get('error_description') || error));
+    return;
+  }
+
+  if (!code) return; // Not a callback, show the form
+
+  // Validate state
+  const savedState = localStorage.getItem(LS_KEY + '_state');
+  if (savedState && state !== savedState) {
+    showError('State mismatch — possible CSRF attack. Please try again.');
+    return;
+  }
+
+  const saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+  if (!saved || !saved.clientId || !saved.clientSecret) {
+    showError('Client credentials not found. This can happen if you cleared your browser data. Please start over.');
+    return;
+  }
+
+  const { clientId, clientSecret } = saved;
+
+  // Clear URL params (cosmetic)
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  // Try to exchange code for tokens
+  let tokens = null;
+  try {
+    tokens = await exchangeCode(code, clientId, clientSecret);
+  } catch (e) {
+    // CORS error or network error — fall back to showing code
+    console.warn('Token exchange failed (likely CORS):', e.message);
+  }
+
+  // Clean up localStorage
+  localStorage.removeItem(LS_KEY);
+  localStorage.removeItem(LS_KEY + '_state');
+
+  // Build config JSON
+  const env = {
+    TICKTICK_CLIENT_ID: clientId,
+    TICKTICK_CLIENT_SECRET: clientSecret,
+  };
+
+  if (tokens) {
+    env.TICKTICK_ACCESS_TOKEN = tokens.access_token;
+    if (tokens.refresh_token) {
+      env.TICKTICK_REFRESH_TOKEN = tokens.refresh_token;
+    }
+  } else {
+    env.TICKTICK_AUTH_CODE = code;
+  }
+
+  const config = {
+    mcpServers: {
+      ticktick: {
+        command: 'npx',
+        args: ['-y', 'github:nikitatsym/ticktick-mcp'],
+        env: env,
+      },
+    },
+  };
+
+  showResult(config, !tokens);
+}
+
+async function exchangeCode(code, clientId, clientSecret) {
+  const basicAuth = btoa(clientId + ':' + clientSecret);
+
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: code,
+    redirect_uri: REDIRECT_URI,
+    scope: SCOPES,
+  });
+
+  const res = await fetch(TICKTICK_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': 'Basic ' + basicAuth,
+    },
+    body: body.toString(),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error('Token exchange failed (' + res.status + '): ' + text);
+  }
+
+  return res.json();
+}
+
+function showResult(config, isCodeOnly) {
+  document.getElementById('formView').classList.add('hidden');
+  document.getElementById('errorView').classList.add('hidden');
+  document.getElementById('resultView').classList.remove('hidden');
+  document.getElementById('configJson').textContent = JSON.stringify(config, null, 2);
+
+  const noteEl = document.getElementById('codeNote');
+  if (isCodeOnly) {
+    noteEl.textContent = 'Note: The auth code (TICKTICK_AUTH_CODE) will be automatically exchanged for tokens when the MCP server starts for the first time. The code is single-use and expires in a few minutes, so paste the config promptly.';
+    noteEl.classList.remove('hidden');
+  }
+}
+
+function showError(msg) {
+  document.getElementById('formView').classList.add('hidden');
+  document.getElementById('resultView').classList.add('hidden');
+  document.getElementById('errorView').classList.remove('hidden');
+  document.getElementById('errorMsg').textContent = msg;
+  localStorage.removeItem(LS_KEY);
+  localStorage.removeItem(LS_KEY + '_state');
+}
+
+function copyConfig() {
+  const text = document.getElementById('configJson').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy to clipboard';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+function reset() {
+  localStorage.removeItem(LS_KEY);
+  localStorage.removeItem(LS_KEY + '_state');
+  window.location.href = window.location.pathname;
+}
+
+// On page load: check if this is a callback
+handleCallback();
+</script>
+
+</body>
+</html>

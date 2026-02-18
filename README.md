@@ -9,73 +9,27 @@ MCP server for [TickTick](https://ticktick.com) task manager. Full support for p
 1. Go to [developer.ticktick.com](https://developer.ticktick.com)
 2. Click **Manage Apps** → log in → **+App Name**
 3. Copy your **Client ID** and **Client Secret**
-4. Set **Redirect URI** to `http://localhost:8585/callback`
+4. Set **Redirect URI** to `https://nikitatsym.github.io/ticktick-mcp/`
 
-### 2. Authorize (one-time)
+### 2. Authorize
 
-```bash
-npx ticktick-mcp-auth
-```
+Visit the setup page:
 
-Or with explicit credentials:
+**[https://nikitatsym.github.io/ticktick-mcp/](https://nikitatsym.github.io/ticktick-mcp/)**
 
-```bash
-TICKTICK_CLIENT_ID=xxx TICKTICK_CLIENT_SECRET=yyy npx ticktick-mcp-auth
-```
-
-A browser window will open → log in to TickTick → done. Tokens are saved to `~/.ticktick-mcp/tokens.json`.
+Enter your Client ID and Client Secret → authorize with TickTick → get a ready-to-paste JSON config.
 
 ### 3. Add to your MCP client
 
+Paste the JSON config from the setup page into your MCP client:
+
 #### Claude Desktop
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "ticktick": {
-      "command": "npx",
-      "args": ["-y", "ticktick-mcp"],
-      "env": {
-        "TICKTICK_CLIENT_ID": "your_client_id",
-        "TICKTICK_CLIENT_SECRET": "your_client_secret"
-      }
-    }
-  }
-}
-```
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows).
 
 #### MetaMCP
 
-Add a new server with type **stdio**:
-
-- **Command:** `npx`
-- **Args:** `-y ticktick-mcp`
-- **Env:** `TICKTICK_CLIENT_ID` and `TICKTICK_CLIENT_SECRET`
-
-#### With pre-obtained tokens (remote servers, Docker, etc.)
-
-If the server runs in an environment without a browser, pass tokens directly:
-
-```json
-{
-  "mcpServers": {
-    "ticktick": {
-      "command": "npx",
-      "args": ["-y", "ticktick-mcp"],
-      "env": {
-        "TICKTICK_CLIENT_ID": "your_client_id",
-        "TICKTICK_CLIENT_SECRET": "your_client_secret",
-        "TICKTICK_ACCESS_TOKEN": "your_access_token",
-        "TICKTICK_REFRESH_TOKEN": "your_refresh_token"
-      }
-    }
-  }
-}
-```
-
-Run `npx ticktick-mcp-auth` locally first to get the tokens.
+Add a new server with type **stdio**, paste the config.
 
 ## Available Tools
 
@@ -121,13 +75,25 @@ Run `npx ticktick-mcp-auth` locally first to get the tokens.
 - **repeatFlag** — iCal RRULE (`"RRULE:FREQ=DAILY;INTERVAL=1"`)
 - **items** — subtasks/checklist items
 
-## Auth Priority
+## Auth Details
 
-1. `TICKTICK_ACCESS_TOKEN` env var → used directly
+The server resolves tokens in this order:
+
+1. `TICKTICK_ACCESS_TOKEN` env var → used directly (also persisted to disk for refresh)
 2. `~/.ticktick-mcp/tokens.json` → loaded from disk
-3. Nothing found → interactive OAuth flow (opens browser)
+3. `TICKTICK_AUTH_CODE` env var → exchanged for tokens on first run (one-time, from setup page)
 
 Token refresh happens automatically when the access token expires.
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `TICKTICK_CLIENT_ID` | OAuth Client ID (required) |
+| `TICKTICK_CLIENT_SECRET` | OAuth Client Secret (required) |
+| `TICKTICK_ACCESS_TOKEN` | Access token (set by setup page or manually) |
+| `TICKTICK_REFRESH_TOKEN` | Refresh token (for auto-renewal) |
+| `TICKTICK_AUTH_CODE` | One-time auth code (fallback if setup page can't exchange tokens) |
 
 ## License
 

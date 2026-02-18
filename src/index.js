@@ -269,15 +269,6 @@ server.tool(
 // ─── Start ──────────────────────────────────────────────────────────────────
 
 async function main() {
-  // Pre-check auth on startup so errors are caught early
-  try {
-    const { getAccessToken } = await import('./auth.js');
-    await getAccessToken(clientId, clientSecret);
-  } catch (err) {
-    console.error(`Auth error: ${err.message}`);
-    process.exit(1);
-  }
-
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('TickTick MCP server running on stdio');

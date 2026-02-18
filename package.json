@@ -5,12 +5,10 @@
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "ticktick-mcp": "src/index.js",
-    "ticktick-mcp-auth": "src/auth.js"
+    "ticktick-mcp": "src/index.js"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "auth": "node src/auth.js"
+    "start": "node src/index.js"
   },
   "keywords": [
     "mcp",
@@ -31,8 +29,7 @@
     "url": "https://github.com/nikitatsym/ticktick-mcp"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
-    "open": "^10.1.0"
+    "@modelcontextprotocol/sdk": "^1.12.1"
   },
   "license": "MIT"
 }
