@@ -45,6 +45,14 @@
   .note { color: #94a3b8; font-size: .8rem; margin-top: 1rem; line-height: 1.4; }
   .hidden { display: none; }
   .copied { background: #047857; }
+  .toggle-row {
+    display: flex; align-items: center; gap: .5rem; margin-top: 1rem;
+    font-size: .85rem; color: #cbd5e1; cursor: pointer; user-select: none;
+  }
+  .toggle-row input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: #3b82f6; cursor: pointer;
+  }
+  .toggle-hint { color: #64748b; font-size: .75rem; margin-top: .2rem; margin-left: 1.6rem; }
 </style>
 </head>
 <body>
@@ -76,6 +84,12 @@
   <div id="resultView" class="hidden">
     <h1 class="success">Authorization complete!</h1>
     <p class="subtitle">Copy this JSON and paste it into your MCP client config (Claude Desktop, MetaMCP, etc.)</p>
+
+    <label class="toggle-row">
+      <input type="checkbox" id="autoUpdate" checked onchange="refreshConfig()">
+      Auto-update (always fetch latest version)
+    </label>
+    <p class="toggle-hint">Adds <code style="color:#a5f3fc">--prefer-online</code> flag so npx checks GitHub for updates on every start.</p>
 
     <pre id="configJson"></pre>
 
@@ -188,17 +202,9 @@ async function handleCallback() {
     env.TICKTICK_AUTH_CODE = code;
   }
 
-  const config = {
-    mcpServers: {
-      ticktick: {
-        command: 'npx',
-        args: ['-y', 'github:nikitatsym/ticktick-mcp'],
-        env: env,
-      },
-    },
-  };
-
-  showResult(config, !tokens);
+  // Store env for re-rendering config when checkbox changes
+  window._configEnv = env;
+  showResult(!tokens);
 }
 
 async function exchangeCode(code, clientId, clientSecret) {
@@ -228,11 +234,33 @@ async function exchangeCode(code, clientId, clientSecret) {
   return res.json();
 }
 
-function showResult(config, isCodeOnly) {
+function buildConfig() {
+  const env = window._configEnv;
+  const autoUpdate = document.getElementById('autoUpdate').checked;
+  const args = autoUpdate
+    ? ['--prefer-online', '-y', 'github:nikitatsym/ticktick-mcp']
+    : ['-y', 'github:nikitatsym/ticktick-mcp'];
+
+  return {
+    mcpServers: {
+      ticktick: {
+        command: 'npx',
+        args: args,
+        env: env,
+      },
+    },
+  };
+}
+
+function refreshConfig() {
+  document.getElementById('configJson').textContent = JSON.stringify(buildConfig(), null, 2);
+}
+
+function showResult(isCodeOnly) {
   document.getElementById('formView').classList.add('hidden');
   document.getElementById('errorView').classList.add('hidden');
   document.getElementById('resultView').classList.remove('hidden');
-  document.getElementById('configJson').textContent = JSON.stringify(config, null, 2);
+  refreshConfig();
 
   const noteEl = document.getElementById('codeNote');
   if (isCodeOnly) {
