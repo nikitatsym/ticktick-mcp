@@ -310,8 +310,19 @@ async function main() {
   let sdkVersion = '?';
   try {
     const { createRequire } = await import('node:module');
-    const require = createRequire(import.meta.url);
-    sdkVersion = require('@modelcontextprotocol/sdk/package.json').version;
+    const req = createRequire(import.meta.url);
+    const sdkEntry = req.resolve('@modelcontextprotocol/sdk');
+    const fs = await import('node:fs');
+    // Walk up from resolved entry to find package.json
+    let dir = (await import('node:path')).dirname(sdkEntry);
+    for (let i = 0; i < 5; i++) {
+      const pjson = (await import('node:path')).join(dir, 'package.json');
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pjson, 'utf-8'));
+        if (pkg.name === '@modelcontextprotocol/sdk') { sdkVersion = pkg.version; break; }
+      } catch { /* skip */ }
+      dir = (await import('node:path')).dirname(dir);
+    }
   } catch { /* ignore */ }
   log(`Starting... (node ${process.version}, pid ${process.pid}, sdk ${sdkVersion})`);
 
