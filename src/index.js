@@ -307,24 +307,38 @@ server.tool(
 // ─── Start ──────────────────────────────────────────────────────────────────
 
 async function main() {
-  let sdkVersion = '?';
-  try {
-    const { createRequire } = await import('node:module');
-    const req = createRequire(import.meta.url);
-    const sdkEntry = req.resolve('@modelcontextprotocol/sdk');
-    const fs = await import('node:fs');
-    // Walk up from resolved entry to find package.json
-    let dir = (await import('node:path')).dirname(sdkEntry);
-    for (let i = 0; i < 5; i++) {
-      const pjson = (await import('node:path')).join(dir, 'package.json');
-      try {
-        const pkg = JSON.parse(fs.readFileSync(pjson, 'utf-8'));
-        if (pkg.name === '@modelcontextprotocol/sdk') { sdkVersion = pkg.version; break; }
-      } catch { /* skip */ }
-      dir = (await import('node:path')).dirname(dir);
+  log(`Starting... (node ${process.version}, pid ${process.pid})`);
+
+  // Log protocol messages for debugging
+  const origStdinOn = process.stdin.on.bind(process.stdin);
+  process.stdin.on = function (event, listener) {
+    if (event === 'data') {
+      return origStdinOn(event, (chunk) => {
+        const str = chunk.toString().trim();
+        // Log just the JSON-RPC method names, not full payloads
+        for (const line of str.split('\n')) {
+          try {
+            const msg = JSON.parse(line);
+            log(`← ${msg.method || 'response'} (id=${msg.id ?? '-'})`);
+          } catch { /* not JSON or header */ }
+        }
+        listener(chunk);
+      });
     }
-  } catch { /* ignore */ }
-  log(`Starting... (node ${process.version}, pid ${process.pid}, sdk ${sdkVersion})`);
+    return origStdinOn(event, listener);
+  };
+
+  const origWrite = process.stdout.write.bind(process.stdout);
+  process.stdout.write = function (chunk, ...args) {
+    const str = typeof chunk === 'string' ? chunk : chunk.toString();
+    for (const line of str.trim().split('\n')) {
+      try {
+        const msg = JSON.parse(line);
+        log(`→ ${msg.method || 'response'} (id=${msg.id ?? '-'})`);
+      } catch { /* not JSON or header */ }
+    }
+    return origWrite(chunk, ...args);
+  };
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
