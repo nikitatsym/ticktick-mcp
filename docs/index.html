@@ -25,13 +25,17 @@
   }
   input:not([type="checkbox"]):focus { border-color: #3b82f6; }
   .btn {
-    display: inline-block; margin-top: 1.5rem; padding: .65rem 1.5rem;
+    display: inline-block; margin-top: 1rem; padding: .65rem 1.5rem;
     background: #3b82f6; color: #fff; border: none; border-radius: 6px;
     font-size: .95rem; cursor: pointer; font-weight: 500; width: 100%; text-align: center;
   }
   .btn:hover { background: #2563eb; }
-  .btn-copy { background: #059669; margin-top: .75rem; }
+  .btn-copy { background: #059669; }
   .btn-copy:hover { background: #047857; }
+  .btn-outline {
+    background: transparent; border: 1px solid #475569; color: #94a3b8;
+  }
+  .btn-outline:hover { background: #1e293b; border-color: #64748b; color: #e2e8f0; }
   .btn-secondary { background: #475569; margin-top: .5rem; }
   .btn-secondary:hover { background: #3f4f63; }
   pre {
@@ -47,8 +51,6 @@
   .note { color: #94a3b8; font-size: .8rem; margin-top: 1rem; line-height: 1.4; }
   .hidden { display: none; }
   .copied { background: #047857; }
-
-  /* Toggle / checkbox row */
   .toggle-row {
     display: flex; align-items: center; gap: .5rem; margin-top: 1rem;
     font-size: .85rem; color: #cbd5e1; cursor: pointer; user-select: none;
@@ -57,116 +59,57 @@
     width: 16px; height: 16px; accent-color: #3b82f6; cursor: pointer;
   }
   .toggle-hint { color: #64748b; font-size: .75rem; margin-top: .2rem; margin-left: 1.6rem; }
-
-  /* Accordion */
-  .accordion-item { margin-top: 1rem; border: 1px solid #334155; border-radius: 8px; overflow: hidden; }
-  .accordion-header {
-    display: flex; align-items: center; gap: .6rem;
-    padding: .85rem 1rem; background: #162033; cursor: pointer; user-select: none;
-    font-size: .95rem; font-weight: 500; color: #e2e8f0; border: none; width: 100%; text-align: left;
+  .divider {
+    border: none; border-top: 1px solid #334155; margin: 1.5rem 0 .5rem;
   }
-  .accordion-header:hover { background: #1a2740; }
-  .accordion-arrow {
-    display: inline-block; transition: transform .2s; font-size: .7rem; color: #64748b; flex-shrink: 0;
-  }
-  .accordion-item.open .accordion-arrow { transform: rotate(90deg); }
-  .accordion-body {
-    max-height: 0; overflow: hidden; transition: max-height .3s ease;
-  }
-  .accordion-item.open .accordion-body { max-height: 800px; }
-  .accordion-content { padding: 1rem 1rem 1.25rem; }
-  .accordion-badge {
-    font-size: .7rem; padding: .15rem .5rem; border-radius: 4px; font-weight: 600; letter-spacing: .02em;
-  }
-  .badge-quick { background: #065f46; color: #6ee7b7; }
-  .badge-full { background: #1e3a5f; color: #93c5fd; }
 </style>
 </head>
 <body>
 
 <div class="card">
-  <!-- Main: choose path -->
+  <!-- Main view: template + auth button -->
   <div id="mainView">
     <h1>TickTick MCP Setup</h1>
     <p class="subtitle">Add TickTick integration to Claude Desktop, MetaMCP, or any MCP client.</p>
 
-    <!-- Option 1: Template -->
-    <div class="accordion-item open" id="accTemplate">
-      <button class="accordion-header" onclick="toggleAccordion('accTemplate')">
-        <span class="accordion-arrow">&#9654;</span>
-        Copy config template
-        <span class="accordion-badge badge-quick">Quick</span>
-      </button>
-      <div class="accordion-body">
-        <div class="accordion-content">
-          <p class="step">Fill in your credentials manually and paste into your MCP client config.</p>
-
-          <label class="toggle-row">
-            <input type="checkbox" id="tplAutoUpdate" checked onchange="refreshTemplate()">
-            Auto-update (always fetch latest version)
-          </label>
-          <p class="toggle-hint">Adds <code style="color:#a5f3fc">--prefer-online</code> flag so npx checks for updates on every start.</p>
-
-          <pre id="tplJson"></pre>
-
-          <button class="btn btn-copy" id="tplCopyBtn" onclick="copyText('tplJson','tplCopyBtn')">Copy to clipboard</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Option 2: Full auth -->
-    <div class="accordion-item" id="accAuth">
-      <button class="accordion-header" onclick="toggleAccordion('accAuth')">
-        <span class="accordion-arrow">&#9654;</span>
-        Authorize &amp; generate config
-        <span class="accordion-badge badge-full">Full setup</span>
-      </button>
-      <div class="accordion-body">
-        <div class="accordion-content">
-          <p class="step">1. Register an app at <a href="https://developer.ticktick.com" target="_blank" rel="noopener">developer.ticktick.com</a></p>
-          <p class="step">2. Set <strong>Redirect URI</strong> to: <code style="color:#a5f3fc">https://nikitatsym.github.io/ticktick-mcp/</code></p>
-          <p class="step">3. Enter your credentials below:</p>
-
-          <label for="clientId">Client ID</label>
-          <input id="clientId" type="text" placeholder="Paste your Client ID" autocomplete="off">
-
-          <label for="clientSecret">Client Secret</label>
-          <input id="clientSecret" type="password" placeholder="Paste your Client Secret" autocomplete="off">
-
-          <label class="toggle-row">
-            <input type="checkbox" id="authAutoUpdate" checked>
-            Auto-update (always fetch latest version)
-          </label>
-          <p class="toggle-hint">Adds <code style="color:#a5f3fc">--prefer-online</code> flag so npx checks for updates on every start.</p>
-
-          <div id="formError" class="error hidden"></div>
-
-          <button class="btn" onclick="startAuth()">Authorize with TickTick</button>
-
-          <p class="note">Your credentials are stored in your browser only and cleared after authorization. Nothing is sent to any server except TickTick.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Result after auth -->
-  <div id="resultView" class="hidden">
-    <h1 class="success">Authorization complete!</h1>
-    <p class="subtitle">Copy this JSON and paste it into your MCP client config (Claude Desktop, MetaMCP, etc.)</p>
-
     <label class="toggle-row">
-      <input type="checkbox" id="resultAutoUpdate" checked onchange="refreshResultConfig()">
+      <input type="checkbox" id="autoUpdate" checked onchange="refreshConfig()">
       Auto-update (always fetch latest version)
     </label>
     <p class="toggle-hint">Adds <code style="color:#a5f3fc">--prefer-online</code> flag so npx checks for updates on every start.</p>
 
     <pre id="configJson"></pre>
 
-    <button class="btn btn-copy" id="copyBtn" onclick="copyText('configJson','copyBtn')">Copy to clipboard</button>
+    <button class="btn btn-copy" id="copyBtn" onclick="copyConfig()">Copy to clipboard</button>
 
     <p class="note hidden" id="codeNote"></p>
 
-    <button class="btn btn-secondary" onclick="reset()">Start over</button>
+    <hr class="divider">
+
+    <!-- Auth section -->
+    <div id="authSection">
+      <p class="step" style="margin-top:.5rem">Want a ready-to-paste config? Authorize with TickTick to fill in the values automatically.</p>
+      <button class="btn btn-outline" onclick="showAuthForm()">Generate with authorization</button>
+    </div>
+
+    <!-- Auth form (hidden until button clicked) -->
+    <div id="authForm" class="hidden">
+      <p class="step">1. Register an app at <a href="https://developer.ticktick.com" target="_blank" rel="noopener">developer.ticktick.com</a></p>
+      <p class="step">2. Set <strong>Redirect URI</strong> to: <code style="color:#a5f3fc">https://nikitatsym.github.io/ticktick-mcp/</code></p>
+      <p class="step">3. Enter your credentials:</p>
+
+      <label for="clientId">Client ID</label>
+      <input id="clientId" type="text" placeholder="Paste your Client ID" autocomplete="off">
+
+      <label for="clientSecret">Client Secret</label>
+      <input id="clientSecret" type="password" placeholder="Paste your Client Secret" autocomplete="off">
+
+      <div id="formError" class="error hidden"></div>
+
+      <button class="btn" onclick="startAuth()">Authorize with TickTick</button>
+
+      <p class="note">Your credentials stay in your browser only. Nothing is sent to any server except TickTick.</p>
+    </div>
   </div>
 
   <!-- Error state -->
@@ -184,42 +127,45 @@ const REDIRECT_URI = 'https://nikitatsym.github.io/ticktick-mcp/';
 const SCOPES = 'tasks:read tasks:write';
 const LS_KEY = 'ticktick_mcp_auth';
 
-/* ── Accordion ── */
-function toggleAccordion(id) {
-  const el = document.getElementById(id);
-  el.classList.toggle('open');
-}
+// Current env — null means template mode, object means real data
+window._configEnv = null;
 
-/* ── Template config ── */
-function buildTemplateArgs(autoUpdate) {
+function buildArgs() {
+  const autoUpdate = document.getElementById('autoUpdate').checked;
   return autoUpdate
     ? ['--prefer-online', '-y', 'github:nikitatsym/ticktick-mcp']
     : ['-y', 'github:nikitatsym/ticktick-mcp'];
 }
 
-function refreshTemplate() {
-  const autoUpdate = document.getElementById('tplAutoUpdate').checked;
+function refreshConfig() {
+  const env = window._configEnv || {
+    TICKTICK_CLIENT_ID: 'YOUR_CLIENT_ID',
+    TICKTICK_CLIENT_SECRET: 'YOUR_CLIENT_SECRET',
+    TICKTICK_ACCESS_TOKEN: 'YOUR_ACCESS_TOKEN',
+  };
+
   const config = {
     mcpServers: {
       ticktick: {
         command: 'npx',
-        args: buildTemplateArgs(autoUpdate),
-        env: {
-          TICKTICK_CLIENT_ID: 'YOUR_CLIENT_ID',
-          TICKTICK_CLIENT_SECRET: 'YOUR_CLIENT_SECRET',
-          TICKTICK_ACCESS_TOKEN: 'YOUR_ACCESS_TOKEN',
-        },
+        args: buildArgs(),
+        env: env,
       },
     },
   };
-  document.getElementById('tplJson').textContent = JSON.stringify(config, null, 2);
+
+  document.getElementById('configJson').textContent = JSON.stringify(config, null, 2);
 }
 
-/* ── Auth flow ── */
+function showAuthForm() {
+  document.getElementById('authSection').classList.add('hidden');
+  document.getElementById('authForm').classList.remove('hidden');
+}
+
 function startAuth() {
   const clientId = document.getElementById('clientId').value.trim();
   const clientSecret = document.getElementById('clientSecret').value.trim();
-  const autoUpdate = document.getElementById('authAutoUpdate').checked;
+  const autoUpdate = document.getElementById('autoUpdate').checked;
   const errEl = document.getElementById('formError');
 
   if (!clientId || !clientSecret) {
@@ -255,7 +201,7 @@ async function handleCallback() {
     return;
   }
 
-  if (!code) return; // Not a callback — show main view
+  if (!code) return; // Not a callback — show template
 
   const savedState = localStorage.getItem(LS_KEY + '_state');
   if (savedState && state !== savedState) {
@@ -300,18 +246,30 @@ async function handleCallback() {
   window._configEnv = env;
 
   // Restore auto-update preference
-  document.getElementById('resultAutoUpdate').checked = autoUpdate !== false;
+  document.getElementById('autoUpdate').checked = autoUpdate !== false;
 
-  document.getElementById('mainView').classList.add('hidden');
-  document.getElementById('errorView').classList.add('hidden');
-  document.getElementById('resultView').classList.remove('hidden');
-  refreshResultConfig();
+  // Hide auth section — show success note instead
+  document.getElementById('authSection').classList.add('hidden');
+  document.getElementById('authForm').classList.add('hidden');
+
+  // Update subtitle
+  document.querySelector('.subtitle').textContent = 'Your config is ready! Copy and paste into your MCP client.';
+  document.querySelector('h1').classList.add('success');
+  document.querySelector('h1').textContent = 'Config ready';
+
+  refreshConfig();
 
   const noteEl = document.getElementById('codeNote');
   if (!tokens) {
-    noteEl.textContent = 'Note: The auth code (TICKTICK_AUTH_CODE) will be automatically exchanged for tokens when the MCP server starts for the first time. The code is single-use and expires in a few minutes, so paste the config promptly.';
+    noteEl.textContent = 'Note: The auth code (TICKTICK_AUTH_CODE) will be automatically exchanged for tokens on first server start. The code is single-use and expires in a few minutes — paste the config promptly.';
     noteEl.classList.remove('hidden');
   }
+
+  // Add "start over" button
+  const divider = document.querySelector('.divider');
+  divider.classList.remove('hidden');
+  divider.insertAdjacentHTML('afterend',
+    '<button class="btn btn-secondary" onclick="reset()">Start over</button>');
 }
 
 async function exchangeCode(code, clientId, clientSecret) {
@@ -341,27 +299,10 @@ async function exchangeCode(code, clientId, clientSecret) {
   return res.json();
 }
 
-/* ── Result config ── */
-function refreshResultConfig() {
-  const env = window._configEnv;
-  const autoUpdate = document.getElementById('resultAutoUpdate').checked;
-  const config = {
-    mcpServers: {
-      ticktick: {
-        command: 'npx',
-        args: buildTemplateArgs(autoUpdate),
-        env: env,
-      },
-    },
-  };
-  document.getElementById('configJson').textContent = JSON.stringify(config, null, 2);
-}
-
-/* ── Shared utils ── */
-function copyText(preId, btnId) {
-  const text = document.getElementById(preId).textContent;
+function copyConfig() {
+  const text = document.getElementById('configJson').textContent;
   navigator.clipboard.writeText(text).then(() => {
-    const btn = document.getElementById(btnId);
+    const btn = document.getElementById('copyBtn');
     btn.textContent = 'Copied!';
     btn.classList.add('copied');
     setTimeout(() => {
@@ -373,7 +314,6 @@ function copyText(preId, btnId) {
 
 function showError(msg) {
   document.getElementById('mainView').classList.add('hidden');
-  document.getElementById('resultView').classList.add('hidden');
   document.getElementById('errorView').classList.remove('hidden');
   document.getElementById('errorMsg').textContent = msg;
   localStorage.removeItem(LS_KEY);
@@ -387,7 +327,7 @@ function reset() {
 }
 
 // Init
-refreshTemplate();
+refreshConfig();
 handleCallback();
 </script>
 
