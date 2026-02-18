@@ -5,12 +5,14 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { TickTickClient } from './ticktick-client.js';
 
+const log = (...args) => console.error('[ticktick-mcp]', ...args);
+
 // Catch uncaught errors — write to stderr only (stdout = MCP protocol)
 process.on('uncaughtException', (err) => {
-  console.error('[ticktick-mcp] Uncaught exception:', err);
+  log('Uncaught exception:', err);
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('[ticktick-mcp] Unhandled rejection:', reason);
+  log('Unhandled rejection:', reason);
 });
 
 const clientId = process.env.TICKTICK_CLIENT_ID;
@@ -36,7 +38,7 @@ function withErrorHandling(toolName, handler) {
       return await handler(...args);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`[ticktick-mcp] ${toolName} failed:`, message);
+      log(`${toolName} failed:`, message);
       try {
         server.server.sendLoggingMessage({
           level: 'error',
@@ -308,12 +310,42 @@ server.tool(
 // ─── Start ──────────────────────────────────────────────────────────────────
 
 async function main() {
+  log(`Starting... (node ${process.version}, pid ${process.pid})`);
+  log(`stdin isTTY=${process.stdin.isTTY}, stdout isTTY=${process.stdout.isTTY}`);
+
   const transport = new StdioServerTransport();
+
+  // Monitor what the transport receives/sends
+  const origOnMessage = transport.onmessage;
+  Object.defineProperty(transport, 'onmessage', {
+    set(fn) {
+      origOnMessage; // keep reference
+      Object.defineProperty(transport, '_realOnMessage', { value: fn, writable: true });
+      Object.defineProperty(transport, 'onmessage', {
+        get() { return transport._wrappedOnMessage; },
+        set(fn2) { transport._realOnMessage = fn2; },
+        configurable: true,
+      });
+      transport._wrappedOnMessage = (msg) => {
+        log('← recv:', msg.method || `response:${msg.id}`);
+        return transport._realOnMessage(msg);
+      };
+    },
+    get() { return undefined; },
+    configurable: true,
+  });
+
+  const origSend = transport.send.bind(transport);
+  transport.send = (msg) => {
+    log('→ send:', msg.method || `response:${msg.id}`);
+    return origSend(msg);
+  };
+
   await server.connect(transport);
-  console.error('[ticktick-mcp] Server running on stdio');
+  log('Server connected, waiting for messages on stdio');
 }
 
 main().catch((err) => {
-  console.error('[ticktick-mcp] Fatal:', err);
+  log('Fatal:', err);
   process.exit(1);
 });
