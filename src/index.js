@@ -308,10 +308,19 @@ server.tool(
 
 async function main() {
   log(`Starting... (node ${process.version}, pid ${process.pid})`);
+  log(`stdin: readable=${process.stdin.readable}, ended=${process.stdin.readableEnded}`);
+  log(`stdout: writable=${process.stdout.writable}`);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  log('Server connected, waiting for messages on stdio');
+  log(`Server connected`);
+  log(`stdin after connect: flowing=${process.stdin.readableFlowing}, listenerCount=${process.stdin.listenerCount('data')}`);
+
+  // Diagnostic: safe (after transport listener), just observing
+  process.stdin.on('data', (chunk) => log(`[diag] stdin chunk: ${chunk.length} bytes`));
+  process.stdin.on('end', () => log('[diag] stdin ended'));
+  process.stdin.on('close', () => log('[diag] stdin closed'));
+  process.stdout.on('error', (err) => log('[diag] stdout error:', err.message));
 }
 
 main().catch((err) => {
