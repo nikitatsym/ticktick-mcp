@@ -1,0 +1,20 @@
+{
+  "name": "ticktick-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for TickTick task manager",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "ticktick-mcp": "src/index.js",
+    "ticktick-mcp-auth": "src/auth.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "auth": "node src/auth.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "open": "^10.1.0"
+  },
+  "license": "MIT"
+}
