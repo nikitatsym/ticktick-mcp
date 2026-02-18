@@ -307,7 +307,13 @@ server.tool(
 // ─── Start ──────────────────────────────────────────────────────────────────
 
 async function main() {
-  log(`Starting... (node ${process.version}, pid ${process.pid})`);
+  let sdkVersion = '?';
+  try {
+    const { createRequire } = await import('node:module');
+    const require = createRequire(import.meta.url);
+    sdkVersion = require('@modelcontextprotocol/sdk/package.json').version;
+  } catch { /* ignore */ }
+  log(`Starting... (node ${process.version}, pid ${process.pid}, sdk ${sdkVersion})`);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
