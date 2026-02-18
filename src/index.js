@@ -309,20 +309,9 @@ server.tool(
 async function main() {
   log(`Starting... (node ${process.version}, pid ${process.pid})`);
 
-  // Intercept stdout writes to see if server sends responses
-  const origWrite = process.stdout.write.bind(process.stdout);
-  process.stdout.write = function (chunk, ...args) {
-    log(`[diag] stdout write: ${String(chunk).substring(0, 300)}`);
-    return origWrite(chunk, ...args);
-  };
-
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  log(`Server connected, stdin listeners=${process.stdin.listenerCount('data')}`);
-
-  // Log what MetaMCP sends (safe: after transport listener)
-  process.stdin.on('data', (chunk) => log(`[diag] stdin: ${chunk.toString().substring(0, 300)}`));
-  process.stdin.on('end', () => log('[diag] stdin ended'));
+  log('Server connected');
 }
 
 main().catch((err) => {
