@@ -5,6 +5,14 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { TickTickClient } from './ticktick-client.js';
 
+// Catch uncaught errors — write to stderr only (stdout = MCP protocol)
+process.on('uncaughtException', (err) => {
+  console.error('[ticktick-mcp] Uncaught exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[ticktick-mcp] Unhandled rejection:', reason);
+});
+
 const clientId = process.env.TICKTICK_CLIENT_ID;
 const clientSecret = process.env.TICKTICK_CLIENT_SECRET;
 
@@ -13,7 +21,38 @@ const client = new TickTickClient(null, clientId, clientSecret);
 const server = new McpServer({
   name: 'ticktick',
   version: '1.0.0',
+  capabilities: {
+    logging: {},
+  },
 });
+
+/**
+ * Wrap a tool handler with error handling.
+ * On error: logs to stderr, sends MCP log notification, returns { isError: true }.
+ */
+function withErrorHandling(toolName, handler) {
+  return async (...args) => {
+    try {
+      return await handler(...args);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[ticktick-mcp] ${toolName} failed:`, message);
+      try {
+        server.server.sendLoggingMessage({
+          level: 'error',
+          logger: toolName,
+          data: message,
+        });
+      } catch {
+        // server might not be connected yet
+      }
+      return {
+        isError: true,
+        content: [{ type: 'text', text: `Error in ${toolName}: ${message}` }],
+      };
+    }
+  };
+}
 
 // ─── Inbox ──────────────────────────────────────────────────────────────────
 
@@ -21,20 +60,20 @@ server.tool(
   'get_inbox',
   'Get the Inbox project with all its tasks. The Inbox is a special built-in project in TickTick that is NOT included in list_projects. Use this tool whenever you need to see inbox tasks. Returns the inbox project data including all tasks.',
   {},
-  async () => {
+  withErrorHandling('get_inbox', async () => {
     const data = await client.getInboxWithData();
     return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
-  }
+  })
 );
 
 server.tool(
   'get_inbox_id',
   'Get the Inbox project ID. Useful when you need the inbox projectId for other operations like complete_task, delete_task, or update_task on inbox tasks. The inbox ID has the format "inbox<userId>" and is unique per user.',
   {},
-  async () => {
+  withErrorHandling('get_inbox_id', async () => {
     const inboxId = await client.getInboxId();
     return { content: [{ type: 'text', text: JSON.stringify({ inboxId }, null, 2) }] };
-  }
+  })
 );
 
 // ─── Projects ───────────────────────────────────────────────────────────────
@@ -43,30 +82,30 @@ server.tool(
   'list_projects',
   'List all TickTick projects (task lists). IMPORTANT: This does NOT include the Inbox — use get_inbox to access inbox tasks.',
   {},
-  async () => {
+  withErrorHandling('list_projects', async () => {
     const projects = await client.listProjects();
     return { content: [{ type: 'text', text: JSON.stringify(projects, null, 2) }] };
-  }
+  })
 );
 
 server.tool(
   'get_project',
   'Get a TickTick project by ID',
   { projectId: z.string().describe('Project ID') },
-  async ({ projectId }) => {
+  withErrorHandling('get_project', async ({ projectId }) => {
     const project = await client.getProject(projectId);
     return { content: [{ type: 'text', text: JSON.stringify(project, null, 2) }] };
-  }
+  })
 );
 
 server.tool(
   'get_project_with_data',
   'Get a TickTick project with all its tasks and columns. For inbox tasks, use get_inbox instead.',
   { projectId: z.string().describe('Project ID') },
-  async ({ projectId }) => {
+  withErrorHandling('get_project_with_data', async ({ projectId }) => {
     const data = await client.getProjectWithData(projectId);
     return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
-  }
+  })
 );
 
 server.tool(
@@ -78,10 +117,10 @@ server.tool(
     viewMode: z.enum(['list', 'kanban', 'timeline']).optional().describe('View mode'),
     kind: z.enum(['TASK', 'NOTE']).optional().describe('Project kind'),
   },
-  async (params) => {
+  withErrorHandling('create_project', async (params) => {
     const project = await client.createProject(params);
     return { content: [{ type: 'text', text: JSON.stringify(project, null, 2) }] };
-  }
+  })
 );
 
 server.tool(
@@ -94,20 +133,20 @@ server.tool(
     viewMode: z.enum(['list', 'kanban', 'timeline']).optional().describe('New view mode'),
     kind: z.enum(['TASK', 'NOTE']).optional().describe('New kind'),
   },
-  async ({ projectId, ...updates }) => {
+  withErrorHandling('update_project', async ({ projectId, ...updates }) => {
     const project = await client.updateProject(projectId, updates);
     return { content: [{ type: 'text', text: JSON.stringify(project, null, 2) }] };
-  }
+  })
 );
 
 server.tool(
   'delete_project',
   'Delete a TickTick project',
   { projectId: z.string().describe('Project ID to delete') },
-  async ({ projectId }) => {
+  withErrorHandling('delete_project', async ({ projectId }) => {
     await client.deleteProject(projectId);
     return { content: [{ type: 'text', text: `Project ${projectId} deleted.` }] };
-  }
+  })
 );
 
 // ─── Tasks ──────────────────────────────────────────────────────────────────
@@ -119,10 +158,10 @@ server.tool(
     projectId: z.string().describe('Project ID containing the task'),
     taskId: z.string().describe('Task ID'),
   },
-  async ({ projectId, taskId }) => {
+  withErrorHandling('get_task', async ({ projectId, taskId }) => {
     const task = await client.getTask(projectId, taskId);
     return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
-  }
+  })
 );
 
 server.tool(
@@ -155,10 +194,10 @@ server.tool(
       .optional()
       .describe('Subtask/checklist items'),
   },
-  async (params) => {
+  withErrorHandling('create_task', async (params) => {
     const task = await client.createTask(params);
     return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
-  }
+  })
 );
 
 server.tool(
@@ -192,10 +231,10 @@ server.tool(
       .optional()
       .describe('Updated subtask/checklist items'),
   },
-  async ({ taskId, ...updates }) => {
+  withErrorHandling('update_task', async ({ taskId, ...updates }) => {
     const task = await client.updateTask(taskId, updates);
     return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
-  }
+  })
 );
 
 server.tool(
@@ -205,10 +244,10 @@ server.tool(
     projectId: z.string().describe('Project ID'),
     taskId: z.string().describe('Task ID to complete'),
   },
-  async ({ projectId, taskId }) => {
+  withErrorHandling('complete_task', async ({ projectId, taskId }) => {
     await client.completeTask(projectId, taskId);
     return { content: [{ type: 'text', text: `Task ${taskId} marked as completed.` }] };
-  }
+  })
 );
 
 server.tool(
@@ -218,10 +257,10 @@ server.tool(
     projectId: z.string().describe('Project ID'),
     taskId: z.string().describe('Task ID to delete'),
   },
-  async ({ projectId, taskId }) => {
+  withErrorHandling('delete_task', async ({ projectId, taskId }) => {
     await client.deleteTask(projectId, taskId);
     return { content: [{ type: 'text', text: `Task ${taskId} deleted.` }] };
-  }
+  })
 );
 
 server.tool(
@@ -260,10 +299,10 @@ server.tool(
       )
       .describe('Array of task objects to create'),
   },
-  async ({ tasks }) => {
+  withErrorHandling('batch_create_tasks', async ({ tasks }) => {
     const result = await client.batchCreateTasks(tasks);
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-  }
+  })
 );
 
 // ─── Start ──────────────────────────────────────────────────────────────────
@@ -271,10 +310,10 @@ server.tool(
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('TickTick MCP server running on stdio');
+  console.error('[ticktick-mcp] Server running on stdio');
 }
 
 main().catch((err) => {
-  console.error('Fatal:', err);
+  console.error('[ticktick-mcp] Fatal:', err);
   process.exit(1);
 });
