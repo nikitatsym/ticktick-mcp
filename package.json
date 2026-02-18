@@ -12,6 +12,24 @@
     "start": "node src/index.js",
     "auth": "node src/auth.js"
   },
+  "keywords": [
+    "mcp",
+    "ticktick",
+    "tasks",
+    "model-context-protocol",
+    "claude",
+    "ai"
+  ],
+  "files": [
+    "src/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nikitatsym/ticktick-mcp"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "open": "^10.1.0"

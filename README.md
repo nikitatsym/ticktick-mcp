@@ -2,7 +2,7 @@
 
 MCP server for [TickTick](https://ticktick.com) task manager. Full support for projects and tasks — create, read, update, delete, complete, batch operations, subtasks, priorities, tags, reminders, and recurrence.
 
-## Setup
+## Quick Start
 
 ### 1. Register a TickTick App
 
@@ -11,40 +11,32 @@ MCP server for [TickTick](https://ticktick.com) task manager. Full support for p
 3. Copy your **Client ID** and **Client Secret**
 4. Set **Redirect URI** to `http://localhost:8585/callback`
 
-### 2. Install
+### 2. Authorize (one-time)
 
 ```bash
-git clone <this-repo>
-cd ticktick-mcp
-npm install
+npx ticktick-mcp-auth
 ```
 
-### 3. Authorize
-
-#### Option A: Local machine (automatic)
-
-The server will open a browser for OAuth on first launch. Just add the config and start using it.
-
-#### Option B: Remote server / MetaMCP
-
-Run the auth helper **on your local machine** (where you have a browser):
+Or with explicit credentials:
 
 ```bash
-TICKTICK_CLIENT_ID=xxx TICKTICK_CLIENT_SECRET=yyy node src/auth.js
+TICKTICK_CLIENT_ID=xxx TICKTICK_CLIENT_SECRET=yyy npx ticktick-mcp-auth
 ```
 
-It will open the browser, authorize, and print the tokens. Copy them to your server config.
+A browser window will open → log in to TickTick → done. Tokens are saved to `~/.ticktick-mcp/tokens.json`.
 
-## MCP Config
+### 3. Add to your MCP client
 
-### Claude Desktop / MetaMCP (local)
+#### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "ticktick": {
-      "command": "node",
-      "args": ["/absolute/path/to/ticktick-mcp/src/index.js"],
+      "command": "npx",
+      "args": ["-y", "ticktick-mcp"],
       "env": {
         "TICKTICK_CLIENT_ID": "your_client_id",
         "TICKTICK_CLIENT_SECRET": "your_client_secret"
@@ -54,24 +46,36 @@ It will open the browser, authorize, and print the tokens. Copy them to your ser
 }
 ```
 
-### Remote server (with pre-obtained tokens)
+#### MetaMCP
+
+Add a new server with type **stdio**:
+
+- **Command:** `npx`
+- **Args:** `-y ticktick-mcp`
+- **Env:** `TICKTICK_CLIENT_ID` and `TICKTICK_CLIENT_SECRET`
+
+#### With pre-obtained tokens (remote servers, Docker, etc.)
+
+If the server runs in an environment without a browser, pass tokens directly:
 
 ```json
 {
   "mcpServers": {
     "ticktick": {
-      "command": "node",
-      "args": ["/absolute/path/to/ticktick-mcp/src/index.js"],
+      "command": "npx",
+      "args": ["-y", "ticktick-mcp"],
       "env": {
         "TICKTICK_CLIENT_ID": "your_client_id",
         "TICKTICK_CLIENT_SECRET": "your_client_secret",
-        "TICKTICK_ACCESS_TOKEN": "token_from_auth_helper",
-        "TICKTICK_REFRESH_TOKEN": "refresh_token_from_auth_helper"
+        "TICKTICK_ACCESS_TOKEN": "your_access_token",
+        "TICKTICK_REFRESH_TOKEN": "your_refresh_token"
       }
     }
   }
 }
 ```
+
+Run `npx ticktick-mcp-auth` locally first to get the tokens.
 
 ## Available Tools
 
@@ -119,7 +123,7 @@ It will open the browser, authorize, and print the tokens. Copy them to your ser
 
 ## Auth Priority
 
-1. `TICKTICK_ACCESS_TOKEN` env var → used immediately
+1. `TICKTICK_ACCESS_TOKEN` env var → used directly
 2. `~/.ticktick-mcp/tokens.json` → loaded from disk
 3. Nothing found → interactive OAuth flow (opens browser)
 
