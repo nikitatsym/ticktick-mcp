@@ -62,6 +62,12 @@
   .divider {
     border: none; border-top: 1px solid #334155; margin: 1.5rem 0 .5rem;
   }
+  .gh-link {
+    display: inline-flex; align-items: center; gap: .4rem;
+    color: #94a3b8; font-size: .8rem; text-decoration: none; margin-top: 1.2rem;
+  }
+  .gh-link:hover { color: #e2e8f0; }
+  .gh-link svg { width: 16px; height: 16px; fill: currentColor; }
 </style>
 </head>
 <body>
@@ -69,8 +75,8 @@
 <div class="card">
   <!-- Main view: template + auth button -->
   <div id="mainView">
-    <h1>TickTick MCP Setup</h1>
-    <p class="subtitle">Add TickTick integration to Claude Desktop, MetaMCP, or any MCP client.</p>
+    <h1>TickTick MCP</h1>
+    <p class="subtitle">Manage TickTick tasks from Claude, MetaMCP, or any MCP client. Generate a config, paste it — ready to go.</p>
 
     <label class="toggle-row">
       <input type="checkbox" id="autoUpdate" checked onchange="refreshConfig()">
@@ -88,15 +94,16 @@
 
     <!-- Auth section -->
     <div id="authSection">
-      <p class="step" style="margin-top:.5rem">Want a ready-to-paste config? Authorize with TickTick to fill in the values automatically.</p>
-      <button class="btn btn-outline" onclick="showAuthForm()">Generate with authorization</button>
+      <p class="step" style="margin-top:.5rem">Click the button below to authorize with TickTick and get a ready-to-paste config with all values filled in.</p>
+      <button class="btn" onclick="showAuthForm()">Get started</button>
     </div>
 
     <!-- Auth form (hidden until button clicked) -->
     <div id="authForm" class="hidden">
-      <p class="step">1. Register an app at <a href="https://developer.ticktick.com" target="_blank" rel="noopener">developer.ticktick.com</a></p>
+      <p class="step" style="margin-bottom:.75rem">First, you need a TickTick app. It takes 30 seconds:</p>
+      <p class="step">1. Open <a href="https://developer.ticktick.com" target="_blank" rel="noopener">developer.ticktick.com</a> → <strong>Manage Apps</strong> → <strong>+App Name</strong></p>
       <p class="step">2. Set <strong>Redirect URI</strong> to: <code style="color:#a5f3fc">https://nikitatsym.github.io/ticktick-mcp/</code></p>
-      <p class="step">3. Enter your credentials:</p>
+      <p class="step">3. Copy <strong>Client ID</strong> and <strong>Client Secret</strong> and paste below:</p>
 
       <label for="clientId">Client ID</label>
       <input id="clientId" type="text" placeholder="Paste your Client ID" autocomplete="off">
@@ -108,8 +115,13 @@
 
       <button class="btn" onclick="startAuth()">Authorize with TickTick</button>
 
-      <p class="note">Your credentials stay in your browser only. Nothing is sent to any server except TickTick.</p>
+      <p class="note">Your credentials stay in your browser. Nothing is sent anywhere except TickTick.</p>
     </div>
+
+    <a class="gh-link" href="https://github.com/nikitatsym/ticktick-mcp" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
   </div>
 
   <!-- Error state -->
@@ -253,9 +265,9 @@ async function handleCallback() {
   document.getElementById('authForm').classList.add('hidden');
 
   // Update subtitle
-  document.querySelector('.subtitle').textContent = 'Your config is ready! Copy and paste into your MCP client.';
+  document.querySelector('.subtitle').textContent = 'Copy the config below and paste it into your MCP client. That\'s it!';
   document.querySelector('h1').classList.add('success');
-  document.querySelector('h1').textContent = 'Config ready';
+  document.querySelector('h1').textContent = 'Ready!';
 
   refreshConfig();
 
