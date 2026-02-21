@@ -50,7 +50,7 @@
   .success { color: #34d399; }
   .note { color: #94a3b8; font-size: .8rem; margin-top: 1rem; line-height: 1.4; }
   .hidden { display: none; }
-  .copied { background: #047857; }
+  .copied { background: #047857; border-color: #047857; color: #fff; }
   .toggle-row {
     display: flex; align-items: center; gap: .5rem; margin-top: 1rem;
     font-size: .85rem; color: #cbd5e1; cursor: pointer; user-select: none;
@@ -86,7 +86,7 @@
 
     <pre id="configJson"></pre>
 
-    <button class="btn btn-copy" id="copyBtn" onclick="copyConfig()">Copy to clipboard</button>
+    <button class="btn btn-outline" id="copyBtn" onclick="copyConfig()">Copy to clipboard</button>
 
     <p class="note hidden" id="codeNote"></p>
 
@@ -268,6 +268,11 @@ async function handleCallback() {
   document.querySelector('.subtitle').textContent = 'Copy the config below and paste it into your MCP client. That\'s it!';
   document.querySelector('h1').classList.add('success');
   document.querySelector('h1').textContent = 'Ready!';
+
+  // Promote copy button after successful auth
+  const copyBtn = document.getElementById('copyBtn');
+  copyBtn.classList.remove('btn-outline');
+  copyBtn.classList.add('btn-copy');
 
   refreshConfig();
 
