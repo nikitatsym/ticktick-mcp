@@ -16,13 +16,11 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
 
-      - run: |
-          uv build --wheel --out-dir dist/
-          cp dist/*.whl dist/ticktick_mcp-py3-none-any.whl
+      - run: uv build --wheel --out-dir dist/
 
       - name: Upload wheel to release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes 2>/dev/null || true
-          gh release create latest dist/ticktick_mcp-py3-none-any.whl --title "Latest build" --notes "Auto-built from \`main\` branch." --latest
+          gh release create latest dist/*.whl --title "Latest build" --notes "Auto-built from \`main\` branch." --latest
