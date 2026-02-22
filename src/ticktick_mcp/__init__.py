@@ -1,5 +1,5 @@
-from ticktick_mcp.server import mcp
+from ticktick_mcp.server import run
 
 
 def main():
-    mcp.run(transport="stdio")
+    run()

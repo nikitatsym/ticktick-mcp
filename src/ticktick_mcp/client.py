@@ -1,131 +1,117 @@
-from __future__ import annotations
+import json
+import urllib.error
+import urllib.request
 
-import os
-import sys
-
-import httpx
-
-from .auth import (
-    get_access_token,
-    load_tokens,
-    refresh_access_token,
-    save_tokens,
-)
+from .auth import get_access_token, load_tokens, refresh_access_token, save_tokens
 
 API_BASE = "https://api.ticktick.com/open/v1"
 
 
-def _log(msg: str) -> None:
-    print(f"[ticktick-mcp] {msg}", file=sys.stderr)
-
-
 class TickTickClient:
-    def __init__(self, client_id: str | None, client_secret: str | None) -> None:
+    def __init__(self, client_id, client_secret):
         self._client_id = client_id
         self._client_secret = client_secret
-        self._access_token: str | None = None
-        self._inbox_id: str | None = None
-        self._http = httpx.AsyncClient(base_url=API_BASE, timeout=30)
+        self._access_token = None
+        self._inbox_id = None
 
-    async def _token(self) -> str:
+    def _token(self):
         if not self._access_token:
-            self._access_token = await get_access_token(self._client_id, self._client_secret)
+            self._access_token = get_access_token(self._client_id, self._client_secret)
         return self._access_token
 
-    async def _request(self, method: str, endpoint: str, body: dict | list | None = None) -> dict | list | None:
-        token = await self._token()
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
+    def _do_http(self, method, endpoint, token, body=None):
+        url = f"{API_BASE}{endpoint}"
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(url, data=data, method=method)
+        req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Content-Type", "application/json")
+        try:
+            with urllib.request.urlopen(req) as res:
+                raw = res.read()
+                ct = res.headers.get("content-type", "")
+                if "application/json" in ct and raw:
+                    return res.status, json.loads(raw)
+                return res.status, None
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode("utf-8", errors="replace")
 
-        res = await self._http.request(method, endpoint, headers=headers, json=body)
+    def _request(self, method, endpoint, body=None):
+        token = self._token()
+        status, data = self._do_http(method, endpoint, token, body)
 
         # On 401, try refresh
-        if res.status_code == 401:
+        if status == 401:
             tokens = load_tokens()
             if tokens and tokens.get("refresh_token") and self._client_id and self._client_secret:
                 try:
-                    new_tokens = await refresh_access_token(
-                        tokens["refresh_token"], self._client_id, self._client_secret
-                    )
+                    new_tokens = refresh_access_token(tokens["refresh_token"], self._client_id, self._client_secret)
                     save_tokens(new_tokens)
                     self._access_token = new_tokens["access_token"]
-                    headers["Authorization"] = f"Bearer {new_tokens['access_token']}"
-                    res = await self._http.request(method, endpoint, headers=headers, json=body)
+                    status, data = self._do_http(method, endpoint, new_tokens["access_token"], body)
                 except Exception:
-                    pass  # refresh failed, return original 401
+                    pass
 
-        if res.status_code >= 400:
-            raise Exception(f"TickTick API error {res.status_code} {method} {endpoint}: {res.text}")
-
-        content_type = res.headers.get("content-type", "")
-        if "application/json" in content_type:
-            return res.json()
-        return None
+        if status >= 400:
+            raise Exception(f"TickTick API error {status} {method} {endpoint}: {data}")
+        return data
 
     # ── Inbox ───────────────────────────────────────────────
 
-    async def get_inbox_id(self) -> str:
+    def get_inbox_id(self):
         if self._inbox_id:
             return self._inbox_id
-
-        # Create a throwaway task to discover inbox ID
-        temp_task = await self.create_task({"title": "__ticktick_mcp_inbox_probe__"})
+        temp_task = self.create_task({"title": "__ticktick_mcp_inbox_probe__"})
         self._inbox_id = temp_task["projectId"]
-
-        # Clean up immediately
         try:
-            await self.delete_task(temp_task["projectId"], temp_task["id"])
+            self.delete_task(temp_task["projectId"], temp_task["id"])
         except Exception:
-            pass  # best effort
-
+            pass
         return self._inbox_id
 
-    async def get_inbox_with_data(self) -> dict:
-        inbox_id = await self.get_inbox_id()
-        return await self._request("GET", f"/project/{inbox_id}/data")
+    def get_inbox_with_data(self):
+        inbox_id = self.get_inbox_id()
+        return self._request("GET", f"/project/{inbox_id}/data")
 
     # ── Projects ──────────────────────────────────────────────
 
-    async def list_projects(self) -> list:
-        return await self._request("GET", "/project")
+    def list_projects(self):
+        return self._request("GET", "/project")
 
-    async def get_project(self, project_id: str) -> dict:
-        return await self._request("GET", f"/project/{project_id}")
+    def get_project(self, project_id):
+        return self._request("GET", f"/project/{project_id}")
 
-    async def get_project_with_data(self, project_id: str) -> dict:
-        return await self._request("GET", f"/project/{project_id}/data")
+    def get_project_with_data(self, project_id):
+        return self._request("GET", f"/project/{project_id}/data")
 
-    async def create_project(self, params: dict) -> dict:
+    def create_project(self, params):
         body = {"name": params["name"]}
         for key in ("color", "viewMode", "kind"):
             if params.get(key):
                 body[key] = params[key]
-        return await self._request("POST", "/project", body)
+        return self._request("POST", "/project", body)
 
-    async def update_project(self, project_id: str, updates: dict) -> dict:
-        return await self._request("POST", f"/project/{project_id}", updates)
+    def update_project(self, project_id, updates):
+        return self._request("POST", f"/project/{project_id}", updates)
 
-    async def delete_project(self, project_id: str) -> None:
-        await self._request("DELETE", f"/project/{project_id}")
+    def delete_project(self, project_id):
+        return self._request("DELETE", f"/project/{project_id}")
 
     # ── Tasks ─────────────────────────────────────────────────
 
-    async def get_task(self, project_id: str, task_id: str) -> dict:
-        return await self._request("GET", f"/project/{project_id}/task/{task_id}")
+    def get_task(self, project_id, task_id):
+        return self._request("GET", f"/project/{project_id}/task/{task_id}")
 
-    async def create_task(self, task: dict) -> dict:
-        return await self._request("POST", "/task", task)
+    def create_task(self, task):
+        return self._request("POST", "/task", task)
 
-    async def update_task(self, task_id: str, updates: dict) -> dict:
-        return await self._request("POST", f"/task/{task_id}", updates)
+    def update_task(self, task_id, updates):
+        return self._request("POST", f"/task/{task_id}", updates)
 
-    async def complete_task(self, project_id: str, task_id: str) -> None:
-        await self._request("POST", f"/project/{project_id}/task/{task_id}/complete")
+    def complete_task(self, project_id, task_id):
+        return self._request("POST", f"/project/{project_id}/task/{task_id}/complete")
 
-    async def delete_task(self, project_id: str, task_id: str) -> None:
-        await self._request("DELETE", f"/project/{project_id}/task/{task_id}")
+    def delete_task(self, project_id, task_id):
+        return self._request("DELETE", f"/project/{project_id}/task/{task_id}")
 
-    async def batch_create_tasks(self, tasks: list[dict]) -> dict:
-        return await self._request("POST", "/batch/task", {"add": tasks})
+    def batch_create_tasks(self, tasks):
+        return self._request("POST", "/batch/task", {"add": tasks})
