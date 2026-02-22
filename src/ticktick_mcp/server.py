@@ -239,10 +239,14 @@ def run():
         pass
     _log(f"v{_ver} starting (pid {os.getpid()})")
 
+    _log("Waiting for input on stdin...")
+
     while True:
         line = stdin.readline()
         if not line:
-            break  # EOF
+            _log("EOF on stdin, exiting")
+            break
+        _log(f"Raw input ({len(line)} bytes): {line[:200]!r}")
         line = line.strip()
         if not line:
             continue
@@ -256,6 +260,7 @@ def run():
         msg_id = msg.get("id")
         method = msg.get("method", "")
         params = msg.get("params", {})
+        _log(f"Received: method={method} id={msg_id}")
 
         # Notifications (no id) → no response
         if msg_id is None:
@@ -267,5 +272,7 @@ def run():
         except Exception as e:
             response = {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": str(e)}}
 
-        stdout.write(json.dumps(response) + "\n")
+        out = json.dumps(response) + "\n"
+        _log(f"Sending: {len(out)} bytes for id={msg_id}")
+        stdout.write(out)
         stdout.flush()
