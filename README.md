@@ -11,6 +11,28 @@ MCP server for [TickTick](https://ticktick.com) task manager. Manage projects an
 
 Works with Claude Desktop, MetaMCP, and any MCP client that supports stdio servers.
 
+### Requirements
+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (Python package manager)
+
+### Manual config
+
+```json
+{
+  "mcpServers": {
+    "ticktick": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/nikitatsym/ticktick-mcp", "ticktick-mcp"],
+      "env": {
+        "TICKTICK_CLIENT_ID": "YOUR_CLIENT_ID",
+        "TICKTICK_CLIENT_SECRET": "YOUR_CLIENT_SECRET",
+        "TICKTICK_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN"
+      }
+    }
+  }
+}
+```
+
 ## Available Tools
 
 | Tool | Description |
