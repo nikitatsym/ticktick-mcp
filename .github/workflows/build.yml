@@ -16,6 +16,14 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
 
+      - name: Bump patch version
+        run: |
+          CURRENT=$(grep '^version' pyproject.toml | sed 's/.*"\(.*\)".*/\1/')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          sed -i "s/^version = \".*\"/version = \"${NEXT}\"/" pyproject.toml
+          echo "VERSION=${NEXT}" >> "$GITHUB_ENV"
+
       - run: uv build --wheel --out-dir dist/
 
       - name: Upload wheel to release
@@ -23,9 +31,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes 2>/dev/null || true
-          gh release create latest dist/*.whl --title "Latest build" --notes "Auto-built from \`main\` branch." --latest
+          gh release create latest dist/*.whl --title "v${VERSION}" --notes "Auto-built from \`main\` branch." --latest
 
-      - name: Update simple repo index
+      - name: Update simple repo index and commit version bump
         run: |
           WHL=$(basename dist/*.whl)
           cat > docs/simple/ticktick-mcp/index.html << EOF
@@ -36,6 +44,6 @@ jobs:
           EOF
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/simple/ticktick-mcp/index.html
-          git diff --cached --quiet || git commit -m "build: update simple repo index (${WHL})"
+          git add pyproject.toml docs/simple/ticktick-mcp/index.html
+          git commit -m "build: v${VERSION}"
           git push
