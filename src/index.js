@@ -309,37 +309,6 @@ server.tool(
 async function main() {
   log(`Starting... (node ${process.version}, pid ${process.pid})`);
 
-  // Log protocol messages for debugging
-  const origStdinOn = process.stdin.on.bind(process.stdin);
-  process.stdin.on = function (event, listener) {
-    if (event === 'data') {
-      return origStdinOn(event, (chunk) => {
-        const str = chunk.toString().trim();
-        // Log just the JSON-RPC method names, not full payloads
-        for (const line of str.split('\n')) {
-          try {
-            const msg = JSON.parse(line);
-            log(`← ${msg.method || 'response'} (id=${msg.id ?? '-'})`);
-          } catch { /* not JSON or header */ }
-        }
-        listener(chunk);
-      });
-    }
-    return origStdinOn(event, listener);
-  };
-
-  const origWrite = process.stdout.write.bind(process.stdout);
-  process.stdout.write = function (chunk, ...args) {
-    const str = typeof chunk === 'string' ? chunk : chunk.toString();
-    for (const line of str.trim().split('\n')) {
-      try {
-        const msg = JSON.parse(line);
-        log(`→ ${msg.method || 'response'} (id=${msg.id ?? '-'})`);
-      } catch { /* not JSON or header */ }
-    }
-    return origWrite(chunk, ...args);
-  };
-
   const transport = new StdioServerTransport();
   await server.connect(transport);
   log('Server connected');
