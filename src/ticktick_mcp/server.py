@@ -5,7 +5,7 @@ import sys
 
 from .client import TickTickClient
 
-_log = lambda msg: print(f"[ticktick-mcp] {msg}", file=sys.stderr)
+_log = lambda msg: print(f"[ticktick-mcp] {msg}", file=sys.stderr, flush=True)
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
