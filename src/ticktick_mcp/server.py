@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import sys
@@ -226,9 +227,13 @@ def run():
     client_secret = os.environ.get("TICKTICK_CLIENT_SECRET")
     client = TickTickClient(client_id, client_secret)
 
+    # Use binary streams with explicit UTF-8 encoding, no buffering on read
+    stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
+    stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", write_through=True)
+
     _log(f"Starting... (pid {os.getpid()})")
 
-    for line in sys.stdin:
+    for line in stdin:
         line = line.strip()
         if not line:
             continue
@@ -253,5 +258,5 @@ def run():
         except Exception as e:
             response = {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": str(e)}}
 
-        sys.stdout.write(json.dumps(response) + "\n")
-        sys.stdout.flush()
+        stdout.write(json.dumps(response) + "\n")
+        stdout.flush()
