@@ -149,7 +149,7 @@ function refreshConfig() {
     mcpServers: {
       ticktick: {
         command: 'uvx',
-        args: ['--from', WHEEL_URL, 'ticktick-mcp'],
+        args: ['--no-cache', '--from', WHEEL_URL, 'ticktick-mcp'],
         env: env,
       },
     },
