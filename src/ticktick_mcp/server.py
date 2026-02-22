@@ -233,7 +233,10 @@ def run():
 
     _log(f"Starting... (pid {os.getpid()})")
 
-    for line in stdin:
+    while True:
+        line = stdin.readline()
+        if not line:
+            break  # EOF
         line = line.strip()
         if not line:
             continue
