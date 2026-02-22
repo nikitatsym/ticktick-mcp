@@ -136,7 +136,7 @@ const LS_KEY = 'ticktick_mcp_auth';
 // Current env — null means template mode, object means real data
 window._configEnv = null;
 
-const WHEEL_URL = 'https://github.com/nikitatsym/ticktick-mcp/releases/latest/download/ticktick_mcp-1.0.0-py3-none-any.whl';
+const INDEX_URL = 'https://nikitatsym.github.io/ticktick-mcp/simple';
 
 function refreshConfig() {
   const env = window._configEnv || {
@@ -149,7 +149,7 @@ function refreshConfig() {
     mcpServers: {
       ticktick: {
         command: 'uvx',
-        args: ['--no-cache', '--from', WHEEL_URL, 'ticktick-mcp'],
+        args: ['--no-cache', '--index-url', INDEX_URL, 'ticktick-mcp'],
         env: env,
       },
     },
