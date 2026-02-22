@@ -108,9 +108,9 @@
 
     <label class="toggle-row">
       <input type="checkbox" id="autoUpdate" checked onchange="refreshConfig()">
-      Auto-update (always fetch latest version)
+      Cache (use cached version for fast startup)
     </label>
-    <p class="toggle-hint">Adds <code style="color:#a5f3fc">--prefer-online</code> flag so npx checks for updates on every start.</p>
+    <p class="toggle-hint">Uses uv cache for instant startup. Uncheck to always fetch the latest version.</p>
 
     <pre id="configJson"></pre>
 
@@ -144,9 +144,9 @@ window._configEnv = null;
 
 function buildArgs() {
   const autoUpdate = document.getElementById('autoUpdate').checked;
-  return autoUpdate
-    ? ['--prefer-online', '-y', 'github:nikitatsym/ticktick-mcp']
-    : ['-y', 'github:nikitatsym/ticktick-mcp'];
+  const args = ['--from', 'git+https://github.com/nikitatsym/ticktick-mcp', 'ticktick-mcp'];
+  if (!autoUpdate) args.unshift('--no-cache');
+  return args;
 }
 
 function refreshConfig() {
@@ -159,7 +159,7 @@ function refreshConfig() {
   const config = {
     mcpServers: {
       ticktick: {
-        command: 'npx',
+        command: 'uvx',
         args: buildArgs(),
         env: env,
       },
