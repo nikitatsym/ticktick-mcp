@@ -227,9 +227,9 @@ def run():
     client_secret = os.environ.get("TICKTICK_CLIENT_SECRET")
     client = TickTickClient(client_id, client_secret)
 
-    # Use binary streams with explicit UTF-8 encoding, no buffering on read
-    stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
-    stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", write_through=True)
+    # Raw binary IO — bypass all Python buffering layers
+    stdin_buf = sys.stdin.buffer
+    stdout_buf = sys.stdout.buffer
 
     from importlib.metadata import version as _v
     _ver = "dev"
@@ -241,38 +241,42 @@ def run():
 
     _log("Waiting for input on stdin...")
 
+    buf = b""
     while True:
-        line = stdin.readline()
-        if not line:
+        chunk = stdin_buf.read1(65536)
+        if not chunk:
             _log("EOF on stdin, exiting")
             break
-        _log(f"Raw input ({len(line)} bytes): {line[:200]!r}")
-        line = line.strip()
-        if not line:
-            continue
+        buf += chunk
+        while b"\n" in buf:
+            line_bytes, buf = buf.split(b"\n", 1)
+            line = line_bytes.decode("utf-8").strip()
+            if not line:
+                continue
+            _log(f"Raw input ({len(line_bytes)} bytes): {line[:200]!r}")
 
-        try:
-            msg = json.loads(line)
-        except json.JSONDecodeError:
-            _log(f"Invalid JSON: {line[:120]}")
-            continue
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                _log(f"Invalid JSON: {line[:120]}")
+                continue
 
-        msg_id = msg.get("id")
-        method = msg.get("method", "")
-        params = msg.get("params", {})
-        _log(f"Received: method={method} id={msg_id}")
+            msg_id = msg.get("id")
+            method = msg.get("method", "")
+            params = msg.get("params", {})
+            _log(f"Received: method={method} id={msg_id}")
 
-        # Notifications (no id) → no response
-        if msg_id is None:
-            continue
+            # Notifications (no id) → no response
+            if msg_id is None:
+                continue
 
-        try:
-            result = _handle(method, params, client)
-            response = {"jsonrpc": "2.0", "id": msg_id, "result": result}
-        except Exception as e:
-            response = {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": str(e)}}
+            try:
+                result = _handle(method, params, client)
+                response = {"jsonrpc": "2.0", "id": msg_id, "result": result}
+            except Exception as e:
+                response = {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": str(e)}}
 
-        out = json.dumps(response) + "\n"
-        _log(f"Sending: {len(out)} bytes for id={msg_id}")
-        stdout.write(out)
-        stdout.flush()
+            out = json.dumps(response) + "\n"
+            _log(f"Sending: {len(out)} bytes for id={msg_id}")
+            stdout_buf.write(out.encode("utf-8"))
+            stdout_buf.flush()
