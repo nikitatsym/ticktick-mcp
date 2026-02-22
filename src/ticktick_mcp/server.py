@@ -236,6 +236,7 @@ def run():
         try:
             msg = json.loads(line)
         except json.JSONDecodeError:
+            _log(f"Invalid JSON: {line[:120]}")
             continue
 
         msg_id = msg.get("id")
