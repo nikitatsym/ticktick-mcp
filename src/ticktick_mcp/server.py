@@ -231,7 +231,13 @@ def run():
     stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
     stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", write_through=True)
 
-    _log(f"Starting... (pid {os.getpid()})")
+    from importlib.metadata import version as _v
+    _ver = "dev"
+    try:
+        _ver = _v("ticktick-mcp")
+    except Exception:
+        pass
+    _log(f"v{_ver} starting (pid {os.getpid()})")
 
     while True:
         line = stdin.readline()
