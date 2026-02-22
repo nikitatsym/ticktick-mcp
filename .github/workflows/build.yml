@@ -30,8 +30,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload latest dist/*.whl 2>/dev/null || \
-            gh release create latest dist/*.whl --title "Latest build" --notes "Auto-built from \`main\` branch." --latest
+          gh release create "v${VERSION}" dist/*.whl --title "v${VERSION}" --notes "Auto-built from \`main\` branch." --latest
 
       - name: Update simple repo index and commit version bump
         run: |
@@ -39,7 +38,7 @@ jobs:
           cat > docs/simple/ticktick-mcp/index.html << EOF
           <!DOCTYPE html>
           <html><body>
-          <a href="https://github.com/nikitatsym/ticktick-mcp/releases/download/latest/${WHL}">${WHL}</a>
+          <a href="https://github.com/nikitatsym/ticktick-mcp/releases/download/v${VERSION}/${WHL}">${WHL}</a>
           </body></html>
           EOF
           git config user.name "github-actions[bot]"
