@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "description": "MCP server for TickTick task manager",
   "type": "module",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "bin": {
-    "ticktick-mcp": "src/index.js"
+    "ticktick-mcp": "dist/index.js"
   },
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node dist/index.js",
+    "build": "node build.js"
   },
   "keywords": [
     "mcp",
@@ -19,7 +20,7 @@
     "ai"
   ],
   "files": [
-    "src/"
+    "dist/"
   ],
   "engines": {
     "node": ">=18"
@@ -28,9 +29,11 @@
     "type": "git",
     "url": "https://github.com/nikitatsym/ticktick-mcp"
   },
-  "dependencies": {
+  "dependencies": {},
+  "license": "MIT",
+  "devDependencies": {
     "@modelcontextprotocol/sdk": "~1.16.0",
+    "esbuild": "^0.27.3",
     "zod": "^3.23.0"
-  },
-  "license": "MIT"
+  }
 }
