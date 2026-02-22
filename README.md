@@ -22,7 +22,7 @@ Works with Claude Desktop, MetaMCP, and any MCP client that supports stdio serve
   "mcpServers": {
     "ticktick": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/nikitatsym/ticktick-mcp", "ticktick-mcp"],
+      "args": ["--from", "https://raw.githubusercontent.com/nikitatsym/ticktick-mcp/main/dist/ticktick_mcp-1.0.0-py3-none-any.whl", "ticktick-mcp"],
       "env": {
         "TICKTICK_CLIENT_ID": "YOUR_CLIENT_ID",
         "TICKTICK_CLIENT_SECRET": "YOUR_CLIENT_SECRET",

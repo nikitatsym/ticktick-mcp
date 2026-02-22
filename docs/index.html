@@ -106,12 +106,6 @@
 
     <hr class="divider">
 
-    <label class="toggle-row">
-      <input type="checkbox" id="autoUpdate" checked onchange="refreshConfig()">
-      Cache (use cached version for fast startup)
-    </label>
-    <p class="toggle-hint">Uses uv cache for instant startup. Uncheck to always fetch the latest version.</p>
-
     <pre id="configJson"></pre>
 
     <button class="btn btn-outline" id="copyBtn" onclick="copyConfig()">Copy to clipboard</button>
@@ -142,12 +136,7 @@ const LS_KEY = 'ticktick_mcp_auth';
 // Current env — null means template mode, object means real data
 window._configEnv = null;
 
-function buildArgs() {
-  const autoUpdate = document.getElementById('autoUpdate').checked;
-  const args = ['--from', 'git+https://github.com/nikitatsym/ticktick-mcp', 'ticktick-mcp'];
-  if (!autoUpdate) args.unshift('--no-cache');
-  return args;
-}
+const WHEEL_URL = 'https://raw.githubusercontent.com/nikitatsym/ticktick-mcp/main/dist/ticktick_mcp-1.0.0-py3-none-any.whl';
 
 function refreshConfig() {
   const env = window._configEnv || {
@@ -160,7 +149,7 @@ function refreshConfig() {
     mcpServers: {
       ticktick: {
         command: 'uvx',
-        args: buildArgs(),
+        args: ['--from', WHEEL_URL, 'ticktick-mcp'],
         env: env,
       },
     },
@@ -177,7 +166,6 @@ function showAuthForm() {
 function startAuth() {
   const clientId = document.getElementById('clientId').value.trim();
   const clientSecret = document.getElementById('clientSecret').value.trim();
-  const autoUpdate = document.getElementById('autoUpdate').checked;
   const errEl = document.getElementById('formError');
 
   if (!clientId || !clientSecret) {
@@ -186,7 +174,7 @@ function startAuth() {
     return;
   }
 
-  localStorage.setItem(LS_KEY, JSON.stringify({ clientId, clientSecret, autoUpdate }));
+  localStorage.setItem(LS_KEY, JSON.stringify({ clientId, clientSecret }));
 
   const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
   localStorage.setItem(LS_KEY + '_state', state);
@@ -227,7 +215,7 @@ async function handleCallback() {
     return;
   }
 
-  const { clientId, clientSecret, autoUpdate } = saved;
+  const { clientId, clientSecret } = saved;
 
   window.history.replaceState({}, document.title, window.location.pathname);
 
@@ -256,9 +244,6 @@ async function handleCallback() {
   }
 
   window._configEnv = env;
-
-  // Restore auto-update preference
-  document.getElementById('autoUpdate').checked = autoUpdate !== false;
 
   // Hide auth section — show success note instead
   document.getElementById('authSection').classList.add('hidden');
