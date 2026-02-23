@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [src/**, pyproject.toml, .github/workflows/build.yml]
+    paths: [src/**, pyproject.toml, .github/workflows/build.yml, docs/**]
 
 permissions:
   contents: write
