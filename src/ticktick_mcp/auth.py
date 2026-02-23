@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 import time
 import urllib.error
 import urllib.parse
@@ -14,7 +13,6 @@ SCOPES = "tasks:read tasks:write"
 TOKEN_DIR = Path.home() / ".ticktick-mcp"
 TOKEN_FILE = TOKEN_DIR / "tokens.json"
 
-_log = lambda msg: print(f"[ticktick-mcp] {msg}", file=sys.stderr)
 _now_ms = lambda: int(time.time() * 1000)
 
 
@@ -87,13 +85,10 @@ def get_access_token(client_id, client_secret):
     if tokens:
         if tokens.get("expires_at") and _now_ms() > tokens["expires_at"] - 60_000:
             if tokens.get("refresh_token") and client_id and client_secret:
-                _log("Access token expired, refreshing...")
                 try:
                     tokens = refresh_access_token(tokens["refresh_token"], client_id, client_secret)
                     save_tokens(tokens)
-                    _log("Token refreshed successfully.")
-                except Exception as e:
-                    _log(f"Token refresh failed: {e}")
+                except Exception:
                     tokens = None
             else:
                 tokens = None
@@ -103,14 +98,12 @@ def get_access_token(client_id, client_secret):
     # Priority 3: auth code
     auth_code = os.environ.get("TICKTICK_AUTH_CODE")
     if auth_code and client_id and client_secret:
-        _log("Exchanging auth code for tokens...")
         try:
             tokens = exchange_code(auth_code, client_id, client_secret)
             save_tokens(tokens)
-            _log(f"Tokens saved to {TOKEN_FILE}")
             return tokens["access_token"]
-        except Exception as e:
-            _log(f"Auth code exchange failed: {e}")
+        except Exception:
+            pass
 
     raise Exception(
         "No authentication tokens found.\n"
