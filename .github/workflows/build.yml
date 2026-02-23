@@ -1,4 +1,4 @@
-name: Build wheel
+name: Build & Release
 
 on:
   push:
@@ -7,42 +7,70 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: astral-sh/setup-uv@v5
 
-      - name: Bump patch version
+      - name: Compute next version
+        id: version
         run: |
-          CURRENT=$(grep '^version' pyproject.toml | sed 's/.*"\(.*\)".*/\1/')
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-          NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
-          sed -i "s/^version = \".*\"/version = \"${NEXT}\"/" pyproject.toml
-          echo "VERSION=${NEXT}" >> "$GITHUB_ENV"
+          LATEST=$(git tag -l 'v*' --sort=-v:refname | head -1 | sed 's/^v//')
+          if [ -z "$LATEST" ]; then
+            NEXT="1.0.0"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST"
+            NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          fi
+          echo "version=${NEXT}" >> "$GITHUB_OUTPUT"
 
-      - run: uv build --wheel --out-dir dist/
+      - name: Set version and build wheel
+        run: |
+          sed -i "s/^version = .*/version = \"${{ steps.version.outputs.version }}\"/" pyproject.toml
+          uv build --wheel --out-dir dist/
 
-      - name: Upload wheel to release
+      - name: Create tag and release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${VERSION}" dist/*.whl --title "v${VERSION}" --notes "Auto-built from \`main\` branch." --latest
+          VERSION="${{ steps.version.outputs.version }}"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+          gh release create "v${VERSION}" dist/*.whl \
+            --title "v${VERSION}" \
+            --notes "Auto-built from \`main\` branch." \
+            --latest
 
-      - name: Update simple repo index and commit version bump
+      - name: Prepare Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          WHL=$(basename dist/*.whl)
-          cat > docs/simple/ticktick-mcp/index.html << EOF
-          <!DOCTYPE html>
-          <html><body>
-          <a href="https://github.com/nikitatsym/ticktick-mcp/releases/download/v${VERSION}/${WHL}">${WHL}</a>
-          </body></html>
-          EOF
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pyproject.toml docs/simple/ticktick-mcp/index.html
-          git commit -m "build: v${VERSION}"
-          git push
+          mkdir -p _site/simple/ticktick-mcp
+          cp docs/index.html _site/
+
+          # Generate PEP 503 index from all releases
+          {
+            echo '<!DOCTYPE html><html><body>'
+            gh release list --json tagName -q '.[].tagName' | while read -r tag; do
+              V="${tag#v}"
+              WHL="ticktick_mcp-${V}-py3-none-any.whl"
+              echo "<a href=\"https://github.com/nikitatsym/ticktick-mcp/releases/download/${tag}/${WHL}\">${WHL}</a>"
+            done
+            echo '</body></html>'
+          } > _site/simple/ticktick-mcp/index.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/deploy-pages@v4
+        id: deployment
