@@ -9,7 +9,7 @@ description = "MCP server for TickTick task manager"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["mcp>=1.0.0"]
 keywords = ["mcp", "ticktick", "tasks", "model-context-protocol", "claude", "ai"]
 
 [project.scripts]
