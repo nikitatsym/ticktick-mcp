@@ -37,6 +37,7 @@ Works with Claude Desktop, MetaMCP, and any MCP client that supports stdio serve
 
 | Tool | Description |
 |------|-------------|
+| `get_today` | Get all uncompleted tasks due today or earlier (overdue) |
 | `get_inbox` | Get the Inbox with all its tasks |
 | `get_inbox_id` | Get the inbox project ID |
 | `list_projects` | List all projects (does not include Inbox) |

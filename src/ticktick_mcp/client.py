@@ -1,6 +1,7 @@
 import json
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 
 from .auth import get_access_token, load_tokens, refresh_access_token, save_tokens
 
@@ -115,3 +116,48 @@ class TickTickClient:
 
     def batch_create_tasks(self, tasks):
         return self._request("POST", "/batch/task", {"add": tasks})
+
+    # ── Today ─────────────────────────────────────────────────
+
+    @staticmethod
+    def _parse_date(date_str):
+        """Parse TickTick date string into a datetime object."""
+        if not date_str:
+            return None
+        # TickTick uses formats like "2024-01-15T09:00:00.000+0000"
+        clean = date_str.replace("+0000", "+00:00").replace("+00:00:00", "+00:00")
+        try:
+            return datetime.fromisoformat(clean)
+        except ValueError:
+            return None
+
+    def get_today_tasks(self):
+        """Get all uncompleted tasks due today or earlier (overdue)."""
+        now = datetime.now(timezone.utc)
+        end_of_today = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        projects = self._request("GET", "/project") or []
+        # Include inbox
+        inbox_id = self.get_inbox_id()
+        project_ids = [inbox_id] + [p["id"] for p in projects]
+
+        tasks = []
+        seen = set()
+        for pid in project_ids:
+            try:
+                data = self._request("GET", f"/project/{pid}/data")
+            except Exception:
+                continue
+            for task in data.get("tasks", []):
+                if task["id"] in seen:
+                    continue
+                seen.add(task["id"])
+                # status 0 = normal, 2 = completed
+                if task.get("status", 0) == 2:
+                    continue
+                due = self._parse_date(task.get("dueDate"))
+                if due and due <= end_of_today:
+                    tasks.append(task)
+
+        tasks.sort(key=lambda t: t.get("dueDate") or "")
+        return tasks

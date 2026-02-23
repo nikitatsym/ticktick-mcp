@@ -21,6 +21,14 @@ def _get_client() -> TickTickClient:
     return _client
 
 
+# ── Today ────────────────────────────────────────────────────────────────────
+
+@mcp.tool()
+def get_today() -> str:
+    """Get all uncompleted tasks due today or earlier (overdue). This is the same as the 'Today' view in the TickTick app — shows everything that needs attention now."""
+    return json.dumps(_get_client().get_today_tasks(), indent=2, ensure_ascii=False)
+
+
 # ── Inbox ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
