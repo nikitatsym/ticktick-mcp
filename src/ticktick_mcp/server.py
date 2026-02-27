@@ -15,6 +15,9 @@ _BRIEF_RE = re.compile(r"<brief>(.*?)</brief>", re.DOTALL)
 _DESC_FIELDS = ("content", "desc")
 _NO_BRIEF = "no brief description; add <brief>short summary</brief> to task content"
 
+_DEFAULT_DESC = os.environ.get("TICKTICK_DESC_DEFAULT", "false").lower() in ("1", "true", "yes")
+_DEFAULT_DESC_COMPACT = os.environ.get("TICKTICK_DESC_COMPACT_DEFAULT", "true").lower() in ("1", "true", "yes")
+
 
 def _get_client() -> TickTickClient:
     global _client
@@ -50,7 +53,7 @@ def _process_tasks(tasks: list, desc: bool, descCompact: bool) -> list:
 # ── Today ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def get_today(desc: bool = True, descCompact: bool = False) -> str:
+def get_today(desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT) -> str:
     """Get all uncompleted tasks due today or earlier (overdue). Same as the 'Today' view in TickTick. Use desc=False to hide descriptions and save tokens, or descCompact=True to return only the <brief>...</brief> portion of each description."""
     tasks = _get_client().get_today_tasks()
     return json.dumps(_process_tasks(tasks, desc, descCompact), indent=2, ensure_ascii=False)
@@ -59,7 +62,7 @@ def get_today(desc: bool = True, descCompact: bool = False) -> str:
 # ── Inbox ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def get_inbox(desc: bool = True, descCompact: bool = False) -> str:
+def get_inbox(desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT) -> str:
     """Get the Inbox project with all its tasks. The Inbox is a special built-in project in TickTick that is NOT included in list_projects. Use this tool whenever you need to see inbox tasks. Use desc=False to hide descriptions, or descCompact=True to return only <brief>...</brief> portions."""
     data = _get_client().get_inbox_with_data()
     if "tasks" in data:
@@ -89,7 +92,7 @@ def get_project(projectId: str) -> str:
 
 
 @mcp.tool()
-def get_project_with_data(projectId: str, desc: bool = True, descCompact: bool = False) -> str:
+def get_project_with_data(projectId: str, desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT) -> str:
     """Get a TickTick project with all its tasks and columns. For inbox tasks, use get_inbox instead. Use desc=False to hide descriptions, or descCompact=True to return only <brief>...</brief> portions."""
     data = _get_client().get_project_with_data(projectId)
     if "tasks" in data:

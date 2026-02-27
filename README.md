@@ -26,12 +26,21 @@ Works with Claude Desktop, MetaMCP, and any MCP client that supports stdio serve
       "env": {
         "TICKTICK_CLIENT_ID": "YOUR_CLIENT_ID",
         "TICKTICK_CLIENT_SECRET": "YOUR_CLIENT_SECRET",
-        "TICKTICK_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN"
+        "TICKTICK_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN",
+        "TICKTICK_DESC_DEFAULT": "false",
+        "TICKTICK_DESC_COMPACT_DEFAULT": "true"
       }
     }
   }
 }
 ```
+
+### Optional env vars
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TICKTICK_DESC_DEFAULT` | `false` | Include task descriptions in list responses |
+| `TICKTICK_DESC_COMPACT_DEFAULT` | `true` | When descriptions are included, return only `<brief>...</brief>` content |
 
 ## Available Tools
 
