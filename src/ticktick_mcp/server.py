@@ -12,8 +12,6 @@ mcp = FastMCP("ticktick")
 _client: Optional[TickTickClient] = None
 
 _BRIEF_RE = re.compile(r"<brief>(.*?)</brief>", re.DOTALL)
-_DESC_FIELDS = ("content", "desc")
-_NO_BRIEF = "no brief description; add <brief>short summary</brief> to task content"
 
 _DEFAULT_DESC = os.environ.get("TICKTICK_DESC_DEFAULT", "false").lower() in ("1", "true", "yes")
 _DEFAULT_DESC_COMPACT = os.environ.get("TICKTICK_DESC_COMPACT_DEFAULT", "true").lower() in ("1", "true", "yes")
@@ -29,6 +27,17 @@ def _get_client() -> TickTickClient:
     return _client
 
 
+def _extract_brief(task: dict) -> Optional[str]:
+    """Extract <brief>...</brief> from content or desc field."""
+    for f in ("content", "desc"):
+        val = task.get(f)
+        if val:
+            m = _BRIEF_RE.search(val)
+            if m:
+                return m.group(1).strip()
+    return None
+
+
 def _process_tasks(tasks: list, desc: bool, descCompact: bool) -> list:
     """Filter description fields from task objects based on desc/descCompact flags."""
     if desc and not descCompact:
@@ -36,18 +45,27 @@ def _process_tasks(tasks: list, desc: bool, descCompact: bool) -> list:
     result = []
     for task in tasks:
         task = dict(task)
-        if not desc:
-            for f in _DESC_FIELDS:
-                task.pop(f, None)
-        elif descCompact:
-            for f in _DESC_FIELDS:
-                val = task.get(f)
-                if val is None:
-                    continue
-                m = _BRIEF_RE.search(val)
-                task[f] = m.group(1).strip() if m else _NO_BRIEF
+        if descCompact:
+            brief = _extract_brief(task)
+            task.pop("content", None)
+            task.pop("desc", None)
+            if brief:
+                task["brief"] = brief
+        elif not desc:
+            task.pop("content", None)
+            task.pop("desc", None)
         result.append(task)
     return result
+
+
+def _inject_brief(brief: str, content: Optional[str]) -> str:
+    """Insert or replace <brief> tag in content."""
+    tag = f"<brief>{brief}</brief>"
+    if content:
+        if _BRIEF_RE.search(content):
+            return _BRIEF_RE.sub(tag, content)
+        return f"{tag}\n{content}"
+    return tag
 
 
 # ── Today ────────────────────────────────────────────────────────────────────
@@ -161,6 +179,7 @@ def create_task(
     projectId: Optional[str] = None,
     content: Optional[str] = None,
     desc: Optional[str] = None,
+    brief: Optional[str] = None,
     startDate: Optional[str] = None,
     dueDate: Optional[str] = None,
     isAllDay: Optional[bool] = None,
@@ -171,7 +190,9 @@ def create_task(
     repeatFlag: Optional[str] = None,
     items: Optional[list[dict]] = None,
 ) -> str:
-    """Create a new task in TickTick. If projectId is omitted, the task goes to Inbox. priority: 0=none, 1=low, 3=medium, 5=high. startDate/dueDate in ISO 8601 format. reminders in iCal trigger format. repeatFlag in iCal RRULE format. items are subtask/checklist objects with title (required), status (0=normal, 1=completed), startDate, isAllDay, sortOrder, timeZone."""
+    """Create a new task in TickTick. If projectId is omitted, the task goes to Inbox. brief: short summary stored as <brief> tag inside content (shown in compact list views). priority: 0=none, 1=low, 3=medium, 5=high. startDate/dueDate in ISO 8601 format. reminders in iCal trigger format. repeatFlag in iCal RRULE format. items are subtask/checklist objects with title (required), status (0=normal, 1=completed), startDate, isAllDay, sortOrder, timeZone."""
+    if brief:
+        content = _inject_brief(brief, content)
     task: dict = {"title": title}
     for key in ("projectId", "content", "desc", "startDate", "dueDate", "isAllDay",
                 "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"):
@@ -188,6 +209,7 @@ def update_task(
     title: Optional[str] = None,
     content: Optional[str] = None,
     desc: Optional[str] = None,
+    brief: Optional[str] = None,
     startDate: Optional[str] = None,
     dueDate: Optional[str] = None,
     isAllDay: Optional[bool] = None,
@@ -198,7 +220,12 @@ def update_task(
     repeatFlag: Optional[str] = None,
     items: Optional[list[dict]] = None,
 ) -> str:
-    """Update an existing task. Provide only the fields you want to change."""
+    """Update an existing task. Provide only the fields you want to change. brief: update the short summary stored as <brief> tag inside content."""
+    if brief:
+        if content is None:
+            existing = _get_client().get_task(projectId, taskId)
+            content = existing.get("content") or ""
+        content = _inject_brief(brief, content)
     updates: dict = {"projectId": projectId}
     for key in ("title", "content", "desc", "startDate", "dueDate", "isAllDay",
                 "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"):
