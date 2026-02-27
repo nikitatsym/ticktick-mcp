@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
@@ -9,6 +10,10 @@ from .client import TickTickClient
 mcp = FastMCP("ticktick")
 
 _client: Optional[TickTickClient] = None
+
+_BRIEF_RE = re.compile(r"<brief>(.*?)</brief>", re.DOTALL)
+_DESC_FIELDS = ("content", "desc")
+_NO_BRIEF = "no brief description; add <brief>short summary</brief> to task content"
 
 
 def _get_client() -> TickTickClient:
@@ -21,20 +26,46 @@ def _get_client() -> TickTickClient:
     return _client
 
 
+def _process_tasks(tasks: list, desc: bool, descCompact: bool) -> list:
+    """Filter description fields from task objects based on desc/descCompact flags."""
+    if desc and not descCompact:
+        return tasks
+    result = []
+    for task in tasks:
+        task = dict(task)
+        if not desc:
+            for f in _DESC_FIELDS:
+                task.pop(f, None)
+        elif descCompact:
+            for f in _DESC_FIELDS:
+                val = task.get(f)
+                if val is None:
+                    continue
+                m = _BRIEF_RE.search(val)
+                task[f] = m.group(1).strip() if m else _NO_BRIEF
+        result.append(task)
+    return result
+
+
 # ── Today ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def get_today() -> str:
-    """Get all uncompleted tasks due today or earlier (overdue). This is the same as the 'Today' view in the TickTick app — shows everything that needs attention now."""
-    return json.dumps(_get_client().get_today_tasks(), indent=2, ensure_ascii=False)
+def get_today(desc: bool = True, descCompact: bool = False) -> str:
+    """Get all uncompleted tasks due today or earlier (overdue). Same as the 'Today' view in TickTick. Use desc=False to hide descriptions and save tokens, or descCompact=True to return only the <brief>...</brief> portion of each description."""
+    tasks = _get_client().get_today_tasks()
+    return json.dumps(_process_tasks(tasks, desc, descCompact), indent=2, ensure_ascii=False)
 
 
 # ── Inbox ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def get_inbox() -> str:
-    """Get the Inbox project with all its tasks. The Inbox is a special built-in project in TickTick that is NOT included in list_projects. Use this tool whenever you need to see inbox tasks."""
-    return json.dumps(_get_client().get_inbox_with_data(), indent=2, ensure_ascii=False)
+def get_inbox(desc: bool = True, descCompact: bool = False) -> str:
+    """Get the Inbox project with all its tasks. The Inbox is a special built-in project in TickTick that is NOT included in list_projects. Use this tool whenever you need to see inbox tasks. Use desc=False to hide descriptions, or descCompact=True to return only <brief>...</brief> portions."""
+    data = _get_client().get_inbox_with_data()
+    if "tasks" in data:
+        data = dict(data)
+        data["tasks"] = _process_tasks(data["tasks"], desc, descCompact)
+    return json.dumps(data, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
@@ -58,9 +89,13 @@ def get_project(projectId: str) -> str:
 
 
 @mcp.tool()
-def get_project_with_data(projectId: str) -> str:
-    """Get a TickTick project with all its tasks and columns. For inbox tasks, use get_inbox instead."""
-    return json.dumps(_get_client().get_project_with_data(projectId), indent=2, ensure_ascii=False)
+def get_project_with_data(projectId: str, desc: bool = True, descCompact: bool = False) -> str:
+    """Get a TickTick project with all its tasks and columns. For inbox tasks, use get_inbox instead. Use desc=False to hide descriptions, or descCompact=True to return only <brief>...</brief> portions."""
+    data = _get_client().get_project_with_data(projectId)
+    if "tasks" in data:
+        data = dict(data)
+        data["tasks"] = _process_tasks(data["tasks"], desc, descCompact)
+    return json.dumps(data, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
