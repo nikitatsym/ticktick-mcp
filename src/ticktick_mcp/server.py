@@ -16,6 +16,8 @@ _BRIEF_RE = re.compile(r"<brief>(.*?)</brief>", re.DOTALL)
 _DEFAULT_DESC = os.environ.get("TICKTICK_DESC_DEFAULT", "false").lower() in ("1", "true", "yes")
 _DEFAULT_DESC_COMPACT = os.environ.get("TICKTICK_DESC_COMPACT_DEFAULT", "true").lower() in ("1", "true", "yes")
 _DEFAULT_SLIM = os.environ.get("TICKTICK_SLIM_DEFAULT", "true").lower() in ("1", "true", "yes")
+_REQUIRE_BRIEF = os.environ.get("TICKTICK_REQUIRE_BRIEF", "true").lower() not in ("0", "false", "no")
+_BRIEF_MAX_LENGTH = int(os.environ.get("TICKTICK_BRIEF_MAX_LENGTH", "200"))
 
 _SLIM_FIELDS = {"id", "projectId", "title", "status", "priority", "dueDate", "tags", "parentId", "childIds"}
 
@@ -84,6 +86,24 @@ def _inject_brief(brief: str, content: Optional[str]) -> str:
             return _BRIEF_RE.sub(tag, content)
         return f"{tag}\n{content}"
     return tag
+
+
+def _validate_brief(content: Optional[str]) -> None:
+    """Raise ValueError if brief requirement is on and content lacks a valid <brief> tag."""
+    if not _REQUIRE_BRIEF:
+        return
+    if not content or not _BRIEF_RE.search(content):
+        raise ValueError(
+            "content must contain a <brief>one-line summary</brief> tag. "
+            "Either pass the brief parameter or add the tag to content."
+        )
+    m = _BRIEF_RE.search(content)
+    brief = m.group(1).strip() if m else ""
+    if len(brief) > _BRIEF_MAX_LENGTH:
+        raise ValueError(
+            f"<brief> too long: {len(brief)} chars, max {_BRIEF_MAX_LENGTH}. "
+            "Keep it to a concise one-liner."
+        )
 
 
 # ── Today ────────────────────────────────────────────────────────────────────
@@ -218,9 +238,10 @@ def create_task(
     repeatFlag: Optional[str] = None,
     items: Optional[list[dict]] = None,
 ) -> str:
-    """Create a new task in TickTick. If projectId is omitted, the task goes to Inbox. brief: short summary stored as <brief> tag inside content (shown in compact list views). priority: 0=none, 1=low, 3=medium, 5=high. startDate/dueDate in ISO 8601 format. reminders in iCal trigger format. repeatFlag in iCal RRULE format. items are subtask/checklist objects with title (required), status (0=normal, 1=completed), startDate, isAllDay, sortOrder, timeZone."""
+    """Create a new task in TickTick. If projectId is omitted, the task goes to Inbox. Content must include <brief>summary</brief> tag. brief: short summary stored as <brief> tag inside content (shown in compact list views). priority: 0=none, 1=low, 3=medium, 5=high. startDate/dueDate in ISO 8601 format. reminders in iCal trigger format. repeatFlag in iCal RRULE format. items are subtask/checklist objects with title (required), status (0=normal, 1=completed), startDate, isAllDay, sortOrder, timeZone."""
     if brief:
         content = _inject_brief(brief, content)
+    _validate_brief(content)
     task: dict = {"title": title}
     for key in ("projectId", "content", "desc", "startDate", "dueDate", "isAllDay",
                 "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"):
@@ -248,12 +269,14 @@ def update_task(
     repeatFlag: Optional[str] = None,
     items: Optional[list[dict]] = None,
 ) -> str:
-    """Update an existing task. Provide only the fields you want to change. brief: update the short summary stored as <brief> tag inside content."""
+    """Update an existing task. Provide only the fields you want to change. Content must include <brief>summary</brief> tag. brief: update the short summary stored as <brief> tag inside content."""
     if brief:
         if content is None:
             existing = _get_client().get_task(projectId, taskId)
             content = existing.get("content") or ""
         content = _inject_brief(brief, content)
+    if content is not None:
+        _validate_brief(content)
     updates: dict = {"projectId": projectId}
     for key in ("title", "content", "desc", "startDate", "dueDate", "isAllDay",
                 "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"):
@@ -279,5 +302,11 @@ def delete_task(projectId: str, taskId: str) -> str:
 
 @mcp.tool()
 def batch_create_tasks(tasks: list[dict]) -> str:
-    """Create multiple tasks at once. Each task object supports the same fields as create_task (title is required)."""
+    """Create multiple tasks at once. Each task object supports the same fields as create_task (title is required). Content must include <brief>summary</brief> tag."""
+    for i, task in enumerate(tasks):
+        if "brief" in task:
+            task = dict(task)
+            task["content"] = _inject_brief(task.pop("brief"), task.get("content"))
+            tasks[i] = task
+        _validate_brief(task.get("content"))
     return json.dumps(_get_client().batch_create_tasks(tasks), indent=2, ensure_ascii=False)
