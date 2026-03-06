@@ -106,9 +106,29 @@
 
     <hr class="divider">
 
+    <label class="toggle-row" for="optBrief">
+      <input type="checkbox" id="optBrief" checked onchange="refreshConfig()">
+      Require &lt;brief&gt; tag on task create/edit
+    </label>
+    <div class="toggle-hint">Agents must include a &lt;brief&gt;summary&lt;/brief&gt; tag in task content</div>
+
+    <div id="briefMaxRow" style="margin-top:.5rem;margin-left:1.6rem">
+      <label for="optBriefMax" style="display:inline;font-size:.8rem">Max length:</label>
+      <input id="optBriefMax" type="text" value="200" onchange="refreshConfig()"
+        style="width:5rem;display:inline-block;padding:.3rem .5rem;font-size:.8rem">
+    </div>
+
+    <label class="toggle-row" for="optSlim">
+      <input type="checkbox" id="optSlim" checked onchange="refreshConfig()">
+      Slim mode by default
+    </label>
+    <div class="toggle-hint">Strip verbose fields from task listings to save tokens</div>
+
     <pre id="configJson"></pre>
 
     <button class="btn btn-outline" id="copyBtn" onclick="copyConfig()">Copy to clipboard</button>
+
+    <p class="note">Paste into: <strong>Claude Desktop</strong> &mdash; <code style="color:#a5f3fc">claude_desktop_config.json</code> &bull; <strong>Cursor</strong> &mdash; <code style="color:#a5f3fc">.cursor/mcp.json</code> &bull; <strong>Claude Code</strong> &mdash; <code style="color:#a5f3fc">.claude/settings.json</code> or <code style="color:#a5f3fc">claude mcp add</code>. Global config (macOS): <code style="color:#a5f3fc">~/.claude.json</code> &rarr; <code style="color:#a5f3fc">"mcpServers"</code>.</p>
 
     <p class="note hidden" id="codeNote"></p>
 
@@ -144,6 +164,18 @@ function refreshConfig() {
     TICKTICK_CLIENT_SECRET: 'YOUR_CLIENT_SECRET',
     TICKTICK_ACCESS_TOKEN: 'YOUR_ACCESS_TOKEN',
   };
+
+  const requireBrief = document.getElementById('optBrief').checked;
+  const briefMax = document.getElementById('optBriefMax').value.trim();
+  const slim = document.getElementById('optSlim').checked;
+
+  document.getElementById('briefMaxRow').style.display = requireBrief ? 'block' : 'none';
+
+  if (requireBrief) {
+    env.TICKTICK_REQUIRE_BRIEF = 'true';
+    if (briefMax && briefMax !== '200') env.TICKTICK_BRIEF_MAX_LENGTH = briefMax;
+  }
+  if (slim) env.TICKTICK_SLIM_DEFAULT = 'true';
 
   const config = {
     mcpServers: {
