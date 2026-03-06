@@ -10,6 +10,7 @@ MCP server for [TickTick](https://ticktick.com) task manager. Manage projects an
 4. Copy the generated config into your MCP client — done!
 
 Works with Claude Desktop, MetaMCP, and any MCP client that supports stdio servers.
+For Claude Code global config on macOS: `~/.claude.json` → `"mcpServers"`.
 
 ### Requirements
 
