@@ -1,6 +1,6 @@
 """Tests for brief extraction, injection, and task processing logic."""
 
-from ticktick_mcp.server import _extract_brief, _inject_brief, _process_tasks
+from ticktick_mcp.server import _extract_brief, _inject_brief, _process_tasks, _slim_task
 
 
 # ── _extract_brief ────────────────────────────────────────────────────────────
@@ -121,3 +121,81 @@ def test_process_does_not_mutate_original():
     tasks = [{"id": "1", "title": "T", "content": "text", "desc": "d"}]
     _process_tasks(tasks, desc=False, descCompact=False)
     assert "content" in tasks[0]  # original untouched
+
+
+# ── _slim_task ────────────────────────────────────────────────────────────────
+
+FULL_TASK = {
+    "id": "abc123",
+    "projectId": "proj1",
+    "title": "Buy groceries",
+    "status": 0,
+    "priority": 3,
+    "dueDate": "2026-03-06T00:00:00+0000",
+    "tags": ["errands"],
+    "parentId": "",
+    "childIds": [],
+    "content": "Full notes <brief>Weekly shop</brief> more text",
+    "desc": "some desc",
+    "items": [{"title": "Milk", "status": 0}],
+    "reminders": ["TRIGGER:-PT15M"],
+    "repeatFlag": "RRULE:FREQ=WEEKLY",
+    "sortOrder": -1234567890,
+    "etag": "abcdef",
+    "modifiedTime": "2026-03-05T10:00:00+0000",
+    "timeZone": "America/New_York",
+    "isAllDay": True,
+    "completedTime": "",
+    "kind": "TEXT",
+    "columnId": "col1",
+    "startDate": "2026-03-05T00:00:00+0000",
+}
+
+
+def test_slim_keeps_only_essential_fields():
+    result = _slim_task(FULL_TASK, desc=False, descCompact=False)
+    assert set(result.keys()) == {"id", "projectId", "title", "status", "priority", "dueDate", "tags", "parentId", "childIds"}
+    assert result["id"] == "abc123"
+    assert result["title"] == "Buy groceries"
+
+
+def test_slim_no_desc():
+    result = _slim_task(FULL_TASK, desc=False, descCompact=False)
+    assert "content" not in result
+    assert "desc" not in result
+    assert "brief" not in result
+
+
+def test_slim_with_desc_compact():
+    result = _slim_task(FULL_TASK, desc=True, descCompact=True)
+    assert result["brief"] == "Weekly shop"
+    assert "content" not in result
+    assert "desc" not in result
+
+
+def test_slim_with_desc_full():
+    result = _slim_task(FULL_TASK, desc=True, descCompact=False)
+    assert result["content"] == FULL_TASK["content"]
+    assert result["desc"] == FULL_TASK["desc"]
+    assert "brief" not in result
+
+
+def test_slim_strips_verbose_fields():
+    result = _slim_task(FULL_TASK, desc=False, descCompact=False)
+    for field in ("items", "reminders", "repeatFlag", "sortOrder", "etag",
+                  "modifiedTime", "timeZone", "isAllDay", "completedTime",
+                  "kind", "columnId", "startDate"):
+        assert field not in result
+
+
+def test_slim_no_brief_tag():
+    task = {**FULL_TASK, "content": "no brief tag here"}
+    result = _slim_task(task, desc=True, descCompact=True)
+    assert "brief" not in result
+
+
+def test_slim_missing_optional_fields():
+    """Slim handles tasks that lack optional fields like tags, parentId."""
+    minimal = {"id": "x", "title": "Minimal", "status": 0}
+    result = _slim_task(minimal, desc=False, descCompact=False)
+    assert result == {"id": "x", "title": "Minimal", "status": 0}

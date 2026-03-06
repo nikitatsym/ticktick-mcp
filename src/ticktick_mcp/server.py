@@ -15,6 +15,9 @@ _BRIEF_RE = re.compile(r"<brief>(.*?)</brief>", re.DOTALL)
 
 _DEFAULT_DESC = os.environ.get("TICKTICK_DESC_DEFAULT", "false").lower() in ("1", "true", "yes")
 _DEFAULT_DESC_COMPACT = os.environ.get("TICKTICK_DESC_COMPACT_DEFAULT", "true").lower() in ("1", "true", "yes")
+_DEFAULT_SLIM = os.environ.get("TICKTICK_SLIM_DEFAULT", "true").lower() in ("1", "true", "yes")
+
+_SLIM_FIELDS = {"id", "projectId", "title", "status", "priority", "dueDate", "tags", "parentId", "childIds"}
 
 
 def _get_client() -> TickTickClient:
@@ -36,6 +39,21 @@ def _extract_brief(task: dict) -> Optional[str]:
             if m:
                 return m.group(1).strip()
     return None
+
+
+def _slim_task(task: dict, desc: bool, descCompact: bool) -> dict:
+    """Strip task to essential fields for list context."""
+    out = {k: v for k, v in task.items() if k in _SLIM_FIELDS}
+    if desc:
+        if descCompact:
+            brief = _extract_brief(task)
+            if brief:
+                out["brief"] = brief
+        else:
+            for f in ("content", "desc"):
+                if f in task:
+                    out[f] = task[f]
+    return out
 
 
 def _process_tasks(tasks: list, desc: bool, descCompact: bool) -> list:
@@ -71,21 +89,28 @@ def _inject_brief(brief: str, content: Optional[str]) -> str:
 # ── Today ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def get_today(desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT) -> str:
+def get_today(desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT, slim: bool = _DEFAULT_SLIM) -> str:
     """Get all uncompleted tasks due today or earlier (overdue). Same as the 'Today' view in TickTick. Use desc=False to hide descriptions and save tokens, or descCompact=True to return only the <brief>...</brief> portion of each description."""
     tasks = _get_client().get_today_tasks()
-    return json.dumps(_process_tasks(tasks, desc, descCompact), indent=2, ensure_ascii=False)
+    if slim:
+        tasks = [_slim_task(t, desc, descCompact) for t in tasks]
+    else:
+        tasks = _process_tasks(tasks, desc, descCompact)
+    return json.dumps(tasks, indent=2, ensure_ascii=False)
 
 
 # ── Inbox ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def get_inbox(desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT) -> str:
+def get_inbox(desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT, slim: bool = _DEFAULT_SLIM) -> str:
     """Get the Inbox project with all its tasks. The Inbox is a special built-in project in TickTick that is NOT included in list_projects. Use this tool whenever you need to see inbox tasks. Use desc=False to hide descriptions, or descCompact=True to return only <brief>...</brief> portions."""
     data = _get_client().get_inbox_with_data()
     if "tasks" in data:
         data = dict(data)
-        data["tasks"] = _process_tasks(data["tasks"], desc, descCompact)
+        if slim:
+            data["tasks"] = [_slim_task(t, desc, descCompact) for t in data["tasks"]]
+        else:
+            data["tasks"] = _process_tasks(data["tasks"], desc, descCompact)
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 
@@ -110,12 +135,15 @@ def get_project(projectId: str) -> str:
 
 
 @mcp.tool()
-def get_project_with_data(projectId: str, desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT) -> str:
+def get_project_with_data(projectId: str, desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT, slim: bool = _DEFAULT_SLIM) -> str:
     """Get a TickTick project with all its tasks and columns. For inbox tasks, use get_inbox instead. Use desc=False to hide descriptions, or descCompact=True to return only <brief>...</brief> portions."""
     data = _get_client().get_project_with_data(projectId)
     if "tasks" in data:
         data = dict(data)
-        data["tasks"] = _process_tasks(data["tasks"], desc, descCompact)
+        if slim:
+            data["tasks"] = [_slim_task(t, desc, descCompact) for t in data["tasks"]]
+        else:
+            data["tasks"] = _process_tasks(data["tasks"], desc, descCompact)
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 
