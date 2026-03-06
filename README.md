@@ -41,6 +41,9 @@ Works with Claude Desktop, MetaMCP, and any MCP client that supports stdio serve
 |----------|---------|-------------|
 | `TICKTICK_DESC_DEFAULT` | `false` | Include task descriptions in list responses |
 | `TICKTICK_DESC_COMPACT_DEFAULT` | `true` | When descriptions are included, return only `<brief>...</brief>` content |
+| `TICKTICK_SLIM_DEFAULT` | `true` | Strip verbose fields from task listings |
+| `TICKTICK_REQUIRE_BRIEF` | `true` | Require `<brief>summary</brief>` tag in task content on create/edit |
+| `TICKTICK_BRIEF_MAX_LENGTH` | `200` | Max character length for brief summary |
 
 ## Available Tools
 
