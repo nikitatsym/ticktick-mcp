@@ -45,6 +45,19 @@ For Claude Code global config on macOS: `~/.claude.json` → `"mcpServers"`.
 | `TICKTICK_SLIM_DEFAULT` | `true` | Strip verbose fields from task listings |
 | `TICKTICK_REQUIRE_BRIEF` | `true` | Require `<brief>summary</brief>` tag in task content on create/edit |
 | `TICKTICK_BRIEF_MAX_LENGTH` | `200` | Max character length for brief summary |
+| `TICKTICK_COMPACT` | `false` | Enable compact mode (3 meta-tools instead of 15) |
+
+## Compact Mode
+
+Set `TICKTICK_COMPACT=true` to replace the 15 individual tools with 3 meta-tools. This matches the pattern used by komodo-mcp and gitea-mcp, and makes permission management easier (e.g. allow `ticktick_read`, block `ticktick_delete`).
+
+| Meta-tool | Ops | Description |
+|-----------|-----|-------------|
+| `ticktick_read` | 7 | GetToday, GetInbox, GetInboxId, ListProjects, GetProject, GetProjectWithData, GetTask |
+| `ticktick_write` | 6 | CreateTask, UpdateTask, CompleteTask, CreateProject, UpdateProject, BatchCreateTasks |
+| `ticktick_delete` | 2 | DeleteTask, DeleteProject |
+
+Each tool takes `(operation, params)`. Use `operation="help"` to list available operations.
 
 ## Available Tools
 
