@@ -1,6 +1,5 @@
 """TickTick tool operations. All public functions are auto-registered as MCP tools."""
 
-import json
 import os
 from typing import Optional
 
@@ -60,7 +59,7 @@ ticktick_delete = Group(
 
 
 @_op(ROOT)
-def ticktick_version() -> str:
+def ticktick_version():
     """Get the TickTick MCP server version."""
     from importlib.metadata import version
     return version("ticktick-mcp")
@@ -70,54 +69,53 @@ def ticktick_version() -> str:
 
 
 @_op(ticktick_read)
-def get_today() -> str:
+def get_today():
     """Get all uncompleted tasks due today or earlier (overdue). Same as the 'Today' view in TickTick."""
-    tasks = [_slim_task(t) for t in _get_client().get_today_tasks()]
-    return json.dumps(tasks, indent=2, ensure_ascii=False)
+    return [_slim_task(t) for t in _get_client().get_today_tasks()]
 
 
 @_op(ticktick_read)
-def get_inbox() -> str:
+def get_inbox():
     """Get the Inbox project with all its tasks. The Inbox is NOT included in ListProjects."""
     data = _get_client().get_inbox_with_data()
     if "tasks" in data:
         data = dict(data)
         data["tasks"] = [_slim_task(t) for t in data["tasks"]]
-    return json.dumps(data, indent=2, ensure_ascii=False)
+    return data
 
 
 @_op(ticktick_read)
-def get_inbox_id() -> str:
+def get_inbox_id():
     """Get the Inbox project ID."""
-    return json.dumps({"inboxId": _get_client().get_inbox_id()})
+    return {"inboxId": _get_client().get_inbox_id()}
 
 
 @_op(ticktick_read)
-def list_projects() -> str:
+def list_projects():
     """List all TickTick projects (task lists). Does NOT include the Inbox."""
-    return json.dumps(_get_client().list_projects(), indent=2, ensure_ascii=False)
+    return _get_client().list_projects()
 
 
 @_op(ticktick_read)
-def get_project(projectId: str) -> str:
+def get_project(projectId: str):
     """Get a TickTick project by ID."""
-    return json.dumps(_get_client().get_project(projectId), indent=2, ensure_ascii=False)
+    return _get_client().get_project(projectId)
 
 
 @_op(ticktick_read)
-def get_project_with_data(projectId: str) -> str:
+def get_project_with_data(projectId: str):
     """Get a TickTick project with all its tasks and columns. For inbox tasks, use GetInbox."""
     data = _get_client().get_project_with_data(projectId)
     if "tasks" in data:
         data = dict(data)
         data["tasks"] = [_slim_task(t) for t in data["tasks"]]
-    return json.dumps(data, indent=2, ensure_ascii=False)
+    return data
 
 
 @_op(ticktick_read)
-def get_task(projectId: str, taskId: str) -> str:
+def get_task(projectId: str, taskId: str):
     """Get a specific task by project ID and task ID."""
-    return json.dumps(_get_client().get_task(projectId, taskId), indent=2, ensure_ascii=False)
+    return _get_client().get_task(projectId, taskId)
 
 
 # ── Write operations ─────────────────────────────────────────────────────────
@@ -139,7 +137,7 @@ def create_task(
     reminders: Optional[list[str]] = None,
     repeatFlag: Optional[str] = None,
     items: Optional[list[dict]] = None,
-) -> str:
+):
     """Create a new task. If projectId is omitted, goes to Inbox.
 
     Content must include <brief>summary</brief> tag.
@@ -152,7 +150,7 @@ def create_task(
     task = _prepare_task(locals())
     result = _get_client().create_task(task)
     _verify_response(task, result)
-    return json.dumps(result, indent=2, ensure_ascii=False)
+    return result
 
 
 @_op(ticktick_write)
@@ -172,7 +170,7 @@ def update_task(
     reminders: Optional[list[str]] = None,
     repeatFlag: Optional[str] = None,
     items: Optional[list[dict]] = None,
-) -> str:
+):
     """Update an existing task. Provide only fields to change.
 
     dueDate/startDate: YYYY-MM-DD (all-day) or YYYY-MM-DDTHH:MM:SS (local time).
@@ -186,11 +184,11 @@ def update_task(
     task = _prepare_task(params, is_update=True)
     result = _get_client().update_task(taskId, task)
     _verify_response(task, result)
-    return json.dumps(result, indent=2, ensure_ascii=False)
+    return result
 
 
 @_op(ticktick_write)
-def complete_task(projectId: str, taskId: str) -> str:
+def complete_task(projectId: str, taskId: str):
     """Mark a task as completed."""
     _get_client().complete_task(projectId, taskId)
     return f"Task {taskId} marked as completed."
@@ -202,12 +200,12 @@ def create_project(
     color: Optional[str] = None,
     viewMode: Optional[str] = None,
     kind: Optional[str] = None,
-) -> str:
+):
     """Create a new TickTick project. viewMode: list, kanban, or timeline. kind: TASK or NOTE."""
     proj = _prepare_project(locals())
     result = _get_client().create_project(proj)
     _verify_response(proj, result)
-    return json.dumps(result, indent=2, ensure_ascii=False)
+    return result
 
 
 @_op(ticktick_write)
@@ -217,26 +215,26 @@ def update_project(
     color: Optional[str] = None,
     viewMode: Optional[str] = None,
     kind: Optional[str] = None,
-) -> str:
+):
     """Update an existing TickTick project. viewMode: list, kanban, or timeline. kind: TASK or NOTE."""
     proj = _prepare_project(locals(), is_update=True)
     result = _get_client().update_project(projectId, proj)
     _verify_response(proj, result)
-    return json.dumps(result, indent=2, ensure_ascii=False)
+    return result
 
 
 # ── Delete operations ────────────────────────────────────────────────────────
 
 
 @_op(ticktick_delete)
-def delete_task(projectId: str, taskId: str) -> str:
+def delete_task(projectId: str, taskId: str):
     """Delete a task from TickTick."""
     _get_client().delete_task(projectId, taskId)
     return f"Task {taskId} deleted."
 
 
 @_op(ticktick_delete)
-def delete_project(projectId: str) -> str:
+def delete_project(projectId: str):
     """Delete a TickTick project."""
     _get_client().delete_project(projectId)
     return f"Project {projectId} deleted."
