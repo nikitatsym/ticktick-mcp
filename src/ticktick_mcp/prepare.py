@@ -2,17 +2,20 @@
 
 import os
 import re
+from datetime import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 _BRIEF_RE = re.compile(r"<brief>(.*?)</brief>", re.DOTALL)
 
 _BRIEF_MAX = int(os.environ.get("MCP_TICKTICK_BRIEF_MAX", "100"))
+_DEFAULT_TZ = os.environ.get("MCP_TICKTICK_TIMEZONE", "")
 
 _SLIM_FIELDS = {"id", "projectId", "title", "status", "priority", "dueDate", "tags", "parentId", "childIds"}
 
 _DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_DATETIME_TZ_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}:?\d{2}|Z)$")
-_DATETIME_NO_TZ_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$")
+_NAIVE_DT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$")
+_HAS_OFFSET_RE = re.compile(r"[+-]\d{2}:?\d{2}$|Z$")
 
 _VALID_PRIORITIES = {0, 1, 3, 5}
 _SKIP_VERIFY = {"content", "desc"}
@@ -65,20 +68,46 @@ def _validate_brief(content: Optional[str]) -> None:
         )
 
 
-def _normalize_date(val: str, field: str) -> str:
-    """Normalize date string. YYYY-MM-DD → midnight UTC, with tz → passthrough, no tz → error."""
+def _validate_timezone(tz: str) -> ZoneInfo:
+    """Validate IANA timezone name, return ZoneInfo."""
+    try:
+        return ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, KeyError, ValueError):
+        raise ValueError(
+            f"Unknown timezone: '{tz}'. Use IANA names like 'Europe/Berlin', 'Asia/Tbilisi'."
+        )
+
+
+def _normalize_date(val: str, field: str, tz: ZoneInfo | None) -> str:
+    """Normalize date string using timezone.
+
+    YYYY-MM-DD → midnight, isAllDay. No offset needed.
+    YYYY-MM-DDTHH:MM or YYYY-MM-DDTHH:MM:SS → localize with tz, format with computed offset.
+    Manual offsets (+HHMM, Z) are rejected.
+    """
+    if _HAS_OFFSET_RE.search(val):
+        raise ValueError(
+            f"{field}: manual UTC offsets are not allowed (got '{val}'). "
+            "Pass local time + timeZone instead. Example: dueDate='2026-03-15T19:00', timeZone='Europe/Berlin'."
+        )
     if _DATE_ONLY_RE.match(val):
         return f"{val}T00:00:00.000+0000"
-    if _DATETIME_TZ_RE.match(val):
-        return val
-    if _DATETIME_NO_TZ_RE.match(val):
-        raise ValueError(
-            f"{field} has datetime without timezone: '{val}'. "
-            "Use YYYY-MM-DD for all-day or YYYY-MM-DDTHH:MM:SS±HHMM for specific time."
-        )
+    if _NAIVE_DT_RE.match(val):
+        if tz is None:
+            raise ValueError(
+                f"{field} has a time component but no timeZone. "
+                "Either pass timeZone or set MCP_TICKTICK_TIMEZONE, "
+                "or use date-only format (YYYY-MM-DD) for all-day tasks."
+            )
+        # Pad seconds if missing (HH:MM → HH:MM:SS)
+        if len(val) == 16:  # YYYY-MM-DDTHH:MM
+            val += ":00"
+        dt = datetime.fromisoformat(val).replace(tzinfo=tz)
+        offset = dt.strftime("%z")  # e.g. +0100
+        return dt.strftime(f"%Y-%m-%dT%H:%M:%S.000{offset}")
     raise ValueError(
         f"{field} has invalid format: '{val}'. "
-        "Expected YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS±HHMM."
+        "Expected YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS."
     )
 
 
@@ -126,9 +155,12 @@ def _prepare_task(params: dict, is_update: bool = False) -> dict:
         params.get(f) is not None and _DATE_ONLY_RE.match(str(params[f]))
         for f in ("startDate", "dueDate")
     )
+    # Resolve timezone for date normalization
+    tz_name = params.get("timeZone") or _DEFAULT_TZ or None
+    tz = _validate_timezone(tz_name) if tz_name else None
     for field in ("startDate", "dueDate"):
         if params.get(field) is not None:
-            params[field] = _normalize_date(params[field], field)
+            params[field] = _normalize_date(params[field], field, tz)
     if has_date_only and not isAllDay_explicit:
         params["isAllDay"] = True
     if params.get("priority") is not None:

@@ -2,6 +2,8 @@
 
 import pytest
 
+from zoneinfo import ZoneInfo
+
 from ticktick_mcp.prepare import (
     _normalize_date,
     _prepare_project,
@@ -9,6 +11,7 @@ from ticktick_mcp.prepare import (
     _require,
     _validate_enum,
     _validate_priority,
+    _validate_timezone,
     _verify_response,
 )
 
@@ -16,49 +19,75 @@ from ticktick_mcp.prepare import (
 # ── _normalize_date ──────────────────────────────────────────────────────────
 
 
+class TestValidateTimezone:
+    def test_valid(self):
+        tz = _validate_timezone("Europe/Berlin")
+        assert tz == ZoneInfo("Europe/Berlin")
+
+    def test_valid_utc(self):
+        _validate_timezone("UTC")
+
+    def test_invalid_raises(self):
+        with pytest.raises(ValueError, match="Unknown timezone"):
+            _validate_timezone("Mars/Olympus")
+
+    def test_empty_raises(self):
+        with pytest.raises(ValueError, match="Unknown timezone"):
+            _validate_timezone("")
+
+
 class TestNormalizeDate:
-    def test_date_only(self):
-        assert _normalize_date("2026-03-20", "dueDate") == "2026-03-20T00:00:00.000+0000"
+    _tz_berlin = ZoneInfo("Europe/Berlin")
+    _tz_tbilisi = ZoneInfo("Asia/Tbilisi")
 
-    def test_datetime_with_tz_offset(self):
-        val = "2026-03-20T10:00:00.000+0300"
-        assert _normalize_date(val, "dueDate") == val
+    def test_date_only_no_tz(self):
+        assert _normalize_date("2026-03-20", "dueDate", None) == "2026-03-20T00:00:00.000+0000"
 
-    def test_datetime_with_tz_no_colon(self):
-        val = "2026-03-20T10:00:00+0000"
-        assert _normalize_date(val, "dueDate") == val
+    def test_date_only_with_tz(self):
+        # Date-only always → midnight UTC regardless of tz
+        assert _normalize_date("2026-03-20", "dueDate", self._tz_berlin) == "2026-03-20T00:00:00.000+0000"
 
-    def test_datetime_with_tz_colon(self):
-        val = "2026-03-20T10:00:00+03:00"
-        assert _normalize_date(val, "dueDate") == val
+    def test_naive_datetime_with_tz(self):
+        result = _normalize_date("2026-03-15T19:00:00", "dueDate", self._tz_berlin)
+        # March 15 Berlin is CET (+0100)
+        assert result == "2026-03-15T19:00:00.000+0100"
 
-    def test_datetime_with_z(self):
-        val = "2026-03-20T10:00:00Z"
-        assert _normalize_date(val, "dueDate") == val
+    def test_naive_datetime_tbilisi(self):
+        result = _normalize_date("2026-03-15T15:00:00", "dueDate", self._tz_tbilisi)
+        assert result == "2026-03-15T15:00:00.000+0400"
 
-    def test_datetime_with_millis_and_tz(self):
-        val = "2026-03-20T10:00:00.000+0000"
-        assert _normalize_date(val, "dueDate") == val
+    def test_naive_datetime_short_form(self):
+        result = _normalize_date("2026-03-15T19:00", "dueDate", self._tz_berlin)
+        assert result == "2026-03-15T19:00:00.000+0100"
 
-    def test_datetime_no_tz_raises(self):
-        with pytest.raises(ValueError, match="without timezone"):
-            _normalize_date("2026-03-20T10:00:00", "dueDate")
+    def test_naive_datetime_no_tz_raises(self):
+        with pytest.raises(ValueError, match="no timeZone"):
+            _normalize_date("2026-03-20T10:00:00", "dueDate", None)
 
-    def test_datetime_no_tz_with_millis_raises(self):
-        with pytest.raises(ValueError, match="without timezone"):
-            _normalize_date("2026-03-20T10:00:00.000", "startDate")
+    def test_manual_offset_rejected(self):
+        with pytest.raises(ValueError, match="manual UTC offsets are not allowed"):
+            _normalize_date("2026-03-20T10:00:00+0300", "dueDate", self._tz_berlin)
+
+    def test_manual_offset_z_rejected(self):
+        with pytest.raises(ValueError, match="manual UTC offsets are not allowed"):
+            _normalize_date("2026-03-20T10:00:00Z", "dueDate", None)
+
+    def test_dst_transition(self):
+        # March 29 2026 Berlin switches to CEST (+0200)
+        result = _normalize_date("2026-03-30T10:00:00", "dueDate", self._tz_berlin)
+        assert result == "2026-03-30T10:00:00.000+0200"
 
     def test_garbage_raises(self):
         with pytest.raises(ValueError, match="invalid format"):
-            _normalize_date("next tuesday", "dueDate")
+            _normalize_date("next tuesday", "dueDate", None)
 
     def test_empty_raises(self):
         with pytest.raises(ValueError, match="invalid format"):
-            _normalize_date("", "dueDate")
+            _normalize_date("", "dueDate", None)
 
     def test_field_name_in_error(self):
         with pytest.raises(ValueError, match="startDate"):
-            _normalize_date("bad", "startDate")
+            _normalize_date("bad", "startDate", None)
 
 
 # ── _validate_priority ───────────────────────────────────────────────────────
@@ -173,13 +202,18 @@ class TestPrepareTask:
         assert "<brief>Buy milk</brief>" in result["content"]
         assert "brief" not in result
 
-    def test_create_normalizes_date(self):
+    def test_create_normalizes_date_only(self):
         result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
         assert result["dueDate"] == "2026-03-20T00:00:00.000+0000"
 
-    def test_create_passes_tz_date(self):
-        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00+0300"})
-        assert result["dueDate"] == "2026-03-20T10:00:00+0300"
+    def test_create_normalizes_datetime_with_tz(self):
+        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Tbilisi"})
+        assert result["dueDate"] == "2026-03-20T10:00:00.000+0400"
+        assert result["timeZone"] == "Asia/Tbilisi"
+
+    def test_create_rejects_manual_offset(self):
+        with pytest.raises(ValueError, match="manual UTC offsets"):
+            _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00+0300"})
 
     def test_create_validates_priority(self):
         with pytest.raises(ValueError, match="priority must be"):
@@ -228,8 +262,8 @@ class TestPrepareTask:
         result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20", "isAllDay": False})
         assert result["isAllDay"] is False
 
-    def test_datetime_with_tz_no_auto_isAllDay(self):
-        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00+0300"})
+    def test_datetime_no_auto_isAllDay(self):
+        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Tbilisi"})
         assert "isAllDay" not in result
 
     def test_startDate_date_only_auto_isAllDay(self):
@@ -243,7 +277,7 @@ class TestPrepareTask:
         assert "brief" in params
 
     def test_datetime_no_tz_rejected(self):
-        with pytest.raises(ValueError, match="without timezone"):
+        with pytest.raises(ValueError, match="no timeZone"):
             _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00"})
 
     def test_update_skips_brief_validation_when_no_content(self):
