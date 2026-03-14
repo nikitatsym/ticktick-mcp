@@ -113,11 +113,14 @@
       <div class="toggle-hint" style="margin-left:0">0 = off, &gt;0 = require &lt;brief&gt; tag and cap length</div>
     </div>
 
-    <div style="margin-top:.75rem">
-      <label for="optTimezone" style="display:inline;font-size:.85rem;color:#cbd5e1">Default timezone:</label>
-      <input id="optTimezone" type="text" placeholder="e.g. Asia/Tbilisi" onchange="refreshConfig()"
-        style="width:14rem;display:inline-block;padding:.3rem .5rem;font-size:.85rem;margin-left:.5rem">
-      <div class="toggle-hint" style="margin-left:0">IANA name. Used when tasks have a time but no explicit timeZone. Leave empty to require it per-task.</div>
+    <label class="toggle-row" style="margin-top:.75rem">
+      <input type="checkbox" id="optTzEnabled" onchange="refreshConfig()">
+      Default timezone
+    </label>
+    <div id="tzField" class="hidden" style="margin-top:.4rem;margin-left:1.6rem">
+      <input id="optTimezone" type="text" onchange="refreshConfig()"
+        style="width:14rem;display:inline-block;padding:.3rem .5rem;font-size:.85rem">
+      <div class="toggle-hint" style="margin-left:0">IANA name. Used when tasks have a time but no explicit timeZone.</div>
     </div>
 
 
@@ -168,9 +171,11 @@ function refreshConfig() {
     env.MCP_TICKTICK_BRIEF_MAX = briefMax;
   }
 
-  const timezone = document.getElementById('optTimezone').value.trim();
-  if (timezone) {
-    env.MCP_TICKTICK_TIMEZONE = timezone;
+  if (document.getElementById('optTzEnabled').checked) {
+    const timezone = document.getElementById('optTimezone').value.trim();
+    if (timezone) {
+      env.MCP_TICKTICK_TIMEZONE = timezone;
+    }
   }
 
   const config = {
@@ -346,6 +351,16 @@ function reset() {
   localStorage.removeItem(LS_KEY + '_state');
   window.location.href = window.location.pathname;
 }
+
+// Toggle timezone field visibility
+document.getElementById('optTzEnabled').addEventListener('change', function() {
+  document.getElementById('tzField').classList.toggle('hidden', !this.checked);
+});
+
+// Pre-fill timezone from browser
+try {
+  document.getElementById('optTimezone').value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+} catch (_) {}
 
 // Init
 refreshConfig();
