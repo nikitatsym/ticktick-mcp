@@ -143,7 +143,8 @@ def create_task(
     """Create a new task. If projectId is omitted, goes to Inbox.
 
     Content must include <brief>summary</brief> tag.
-    dueDate/startDate: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS+HHMM.
+    dueDate/startDate: YYYY-MM-DD (all-day) or YYYY-MM-DDTHH:MM:SS (local time).
+    timeZone: IANA name (e.g. 'Europe/Berlin'). Required when using time-of-day.
     priority: 0=none, 1=low, 3=medium, 5=high.
     reminders: iCal triggers e.g. ["TRIGGER:-PT15M"].
     repeatFlag: iCal RRULE e.g. "RRULE:FREQ=WEEKLY".
@@ -174,7 +175,8 @@ def update_task(
 ) -> str:
     """Update an existing task. Provide only fields to change.
 
-    dueDate/startDate: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS+HHMM.
+    dueDate/startDate: YYYY-MM-DD (all-day) or YYYY-MM-DDTHH:MM:SS (local time).
+    timeZone: IANA name (e.g. 'Europe/Berlin'). Required when using time-of-day.
     priority: 0=none, 1=low, 3=medium, 5=high.
     """
     params = dict(locals())

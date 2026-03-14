@@ -113,6 +113,13 @@
       <div class="toggle-hint" style="margin-left:0">0 = off, &gt;0 = require &lt;brief&gt; tag and cap length</div>
     </div>
 
+    <div style="margin-top:.75rem">
+      <label for="optTimezone" style="display:inline;font-size:.85rem;color:#cbd5e1">Default timezone:</label>
+      <input id="optTimezone" type="text" placeholder="e.g. Asia/Tbilisi" onchange="refreshConfig()"
+        style="width:14rem;display:inline-block;padding:.3rem .5rem;font-size:.85rem;margin-left:.5rem">
+      <div class="toggle-hint" style="margin-left:0">IANA name. Used when tasks have a time but no explicit timeZone. Leave empty to require it per-task.</div>
+    </div>
+
 
 
     <pre id="configJson"></pre>
@@ -159,6 +166,11 @@ function refreshConfig() {
   const briefMax = document.getElementById('optBriefMax').value.trim();
   if (briefMax && briefMax !== '100') {
     env.MCP_TICKTICK_BRIEF_MAX = briefMax;
+  }
+
+  const timezone = document.getElementById('optTimezone').value.trim();
+  if (timezone) {
+    env.MCP_TICKTICK_TIMEZONE = timezone;
   }
 
   const config = {
