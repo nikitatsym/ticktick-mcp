@@ -15,7 +15,7 @@ from .prepare import (
     _slim_task,
     _verify_response,
 )
-from .registry import Group, _op
+from .registry import ROOT, Group, _op
 
 _client: Optional[TickTickClient] = None
 
@@ -58,6 +58,16 @@ ticktick_delete = Group(
     "Example: ticktick_delete(operation=\"DeleteTask\", "
     "params='{\"projectId\": \"abc\", \"taskId\": \"xyz\"}')",
 )
+
+
+# ── Standalone operations ────────────────────────────────────────────────────
+
+
+@_op(ROOT)
+def ticktick_version() -> str:
+    """Get the TickTick MCP server version."""
+    from importlib.metadata import version
+    return version("ticktick-mcp")
 
 
 # ── Read operations ──────────────────────────────────────────────────────────

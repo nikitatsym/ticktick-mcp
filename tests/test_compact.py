@@ -44,7 +44,7 @@ def test_total_operations():
         1 for _, fn in inspect.getmembers(_tools_module, inspect.isfunction)
         if hasattr(fn, "_mcp_group")
     )
-    assert total == 14
+    assert total == 15
 
 
 # ── _to_pascal ───────────────────────────────────────────────────────────────
