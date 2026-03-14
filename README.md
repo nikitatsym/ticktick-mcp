@@ -1,6 +1,6 @@
 # TickTick MCP Server
 
-MCP server for [TickTick](https://ticktick.com) task manager. Manage projects and tasks from Claude, MetaMCP, or any MCP client — create, complete, update, delete, batch operations, subtasks, priorities, tags, reminders, recurrence, and more.
+MCP server for [TickTick](https://ticktick.com) task manager. Manage projects and tasks from Claude, MetaMCP, or any MCP client — create, complete, update, delete, subtasks, priorities, tags, reminders, recurrence, and more.
 
 ## Setup
 
@@ -45,39 +45,17 @@ For Claude Code global config on macOS: `~/.claude.json` → `"mcpServers"`.
 | `TICKTICK_SLIM_DEFAULT` | `true` | Strip verbose fields from task listings |
 | `TICKTICK_REQUIRE_BRIEF` | `true` | Require `<brief>summary</brief>` tag in task content on create/edit |
 | `TICKTICK_BRIEF_MAX_LENGTH` | `200` | Max character length for brief summary |
-| `TICKTICK_COMPACT` | `false` | Enable compact mode (3 meta-tools instead of 15) |
+## Tools
 
-## Compact Mode
-
-Set `TICKTICK_COMPACT=true` to replace the 15 individual tools with 3 meta-tools. This matches the pattern used by komodo-mcp and gitea-mcp, and makes permission management easier (e.g. allow `ticktick_read`, block `ticktick_delete`).
+The server exposes 3 meta-tools with operation-based dispatch. Use `operation="help"` to list available operations.
 
 | Meta-tool | Ops | Description |
 |-----------|-----|-------------|
 | `ticktick_read` | 7 | GetToday, GetInbox, GetInboxId, ListProjects, GetProject, GetProjectWithData, GetTask |
-| `ticktick_write` | 6 | CreateTask, UpdateTask, CompleteTask, CreateProject, UpdateProject, BatchCreateTasks |
+| `ticktick_write` | 5 | CreateTask, UpdateTask, CompleteTask, CreateProject, UpdateProject |
 | `ticktick_delete` | 2 | DeleteTask, DeleteProject |
 
-Each tool takes `(operation, params)`. Use `operation="help"` to list available operations.
-
-## Available Tools
-
-| Tool | Description |
-|------|-------------|
-| `get_today` | Get all uncompleted tasks due today or earlier (overdue) |
-| `get_inbox` | Get the Inbox with all its tasks |
-| `get_inbox_id` | Get the inbox project ID |
-| `list_projects` | List all projects (does not include Inbox) |
-| `get_project` | Get project by ID |
-| `get_project_with_data` | Get project with all tasks and columns |
-| `create_project` | Create a project |
-| `update_project` | Update a project |
-| `delete_project` | Delete a project |
-| `get_task` | Get task by project ID + task ID |
-| `create_task` | Create a task (goes to Inbox if no projectId) |
-| `update_task` | Update any task fields |
-| `complete_task` | Mark task as done |
-| `delete_task` | Delete a task |
-| `batch_create_tasks` | Create multiple tasks at once |
+Each tool takes `(operation, params)` where `params` is a JSON string.
 
 ## License
 

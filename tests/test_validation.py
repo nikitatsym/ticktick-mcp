@@ -2,7 +2,7 @@
 
 import pytest
 
-from ticktick_mcp.server import (
+from ticktick_mcp.prepare import (
     _normalize_date,
     _prepare_project,
     _prepare_task,
@@ -292,3 +292,32 @@ class TestPrepareProject:
     def test_skips_unknown_fields(self):
         result = _prepare_project({"name": "Work", "projectId": "p1"})
         assert "projectId" not in result
+
+
+# ── Registration ─────────────────────────────────────────────────────────────
+
+
+class TestRegistration:
+    def test_import_succeeds(self):
+        """Importing server.mcp should not crash — means registration passed."""
+        from ticktick_mcp.server import mcp  # noqa: F401
+
+    def test_all_grouped_functions_have_docstrings(self):
+        from ticktick_mcp import tools as tools_module
+        from ticktick_mcp.server import _GROUPS
+
+        for fn_names in _GROUPS.values():
+            for fn_name in fn_names:
+                fn = getattr(tools_module, fn_name)
+                assert fn.__doc__, f"{fn_name} has no docstring"
+
+    def test_groups_reference_existing_functions(self):
+        from ticktick_mcp import tools as tools_module
+        from ticktick_mcp.server import _GROUPS
+
+        for group_name, fn_names in _GROUPS.items():
+            for fn_name in fn_names:
+                assert hasattr(tools_module, fn_name), (
+                    f"_GROUPS[{group_name!r}] references {fn_name!r} "
+                    "which does not exist in tools.py"
+                )
