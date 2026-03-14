@@ -15,11 +15,11 @@ from .server import (
     _DEFAULT_DESC,
     _DEFAULT_DESC_COMPACT,
     _DEFAULT_SLIM,
-    _extract_brief,
-    _inject_brief,
+    _prepare_project,
+    _prepare_task,
     _process_tasks,
     _slim_task,
-    _validate_brief,
+    _verify_response,
 )
 
 mcp = FastMCP("ticktick")
@@ -50,12 +50,12 @@ _OPERATIONS: dict[str, tuple[str, list[str], str]] = {
     "GetProjectWithData": ("read", ["projectId", "desc", "descCompact", "slim"], "Get a TickTick project with all its tasks and columns."),
     "GetTask": ("read", ["projectId", "taskId"], "Get a specific task by project ID and task ID."),
     # write
-    "CreateTask": ("write", ["title", "projectId", "content", "desc", "brief", "startDate", "dueDate", "isAllDay", "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"], "Create a new task. If projectId is omitted, goes to Inbox. Content must include <brief>summary</brief> tag."),
-    "UpdateTask": ("write", ["taskId", "projectId", "title", "content", "desc", "brief", "startDate", "dueDate", "isAllDay", "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"], "Update an existing task. Provide only the fields you want to change."),
+    "CreateTask": ("write", ["title", "projectId", "content", "desc", "brief", "startDate", "dueDate", "isAllDay", "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"], "Create a new task. If projectId is omitted, goes to Inbox. Content must include <brief>summary</brief> tag. dueDate/startDate: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS±HHMM. priority: 0=none, 1=low, 3=medium, 5=high. reminders: iCal triggers e.g. [\"TRIGGER:-PT15M\"]. repeatFlag: iCal RRULE e.g. \"RRULE:FREQ=WEEKLY\"."),
+    "UpdateTask": ("write", ["taskId", "projectId", "title", "content", "desc", "brief", "startDate", "dueDate", "isAllDay", "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"], "Update an existing task. Provide only fields to change. dueDate/startDate: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS±HHMM. priority: 0=none, 1=low, 3=medium, 5=high."),
     "CompleteTask": ("write", ["projectId", "taskId"], "Mark a task as completed."),
     "CreateProject": ("write", ["name", "color", "viewMode", "kind"], "Create a new TickTick project. viewMode: list, kanban, or timeline. kind: TASK or NOTE."),
-    "UpdateProject": ("write", ["projectId", "name", "color", "viewMode", "kind"], "Update an existing TickTick project."),
-    "BatchCreateTasks": ("write", ["tasks"], "Create multiple tasks at once. Each task object supports the same fields as CreateTask."),
+    "UpdateProject": ("write", ["projectId", "name", "color", "viewMode", "kind"], "Update an existing TickTick project. viewMode: list, kanban, or timeline. kind: TASK or NOTE."),
+    "BatchCreateTasks": ("write", ["tasks"], "Create multiple tasks at once. Each task supports same fields as CreateTask (title required). dueDate/startDate: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS±HHMM. priority: 0/1/3/5."),
     # delete
     "DeleteTask": ("delete", ["projectId", "taskId"], "Delete a task from TickTick."),
     "DeleteProject": ("delete", ["projectId"], "Delete a TickTick project."),
@@ -151,64 +151,39 @@ def _dispatch(operation: str, scope: str, params_str: str) -> str:
 
     # ── Write operations ─────────────────────────────────────────────────
     if operation == "CreateTask":
-        content = params.get("content")
-        brief = params.get("brief")
-        if brief:
-            content = _inject_brief(brief, content)
-        _validate_brief(content)
-        task: dict = {"title": params["title"]}
-        for key in ("projectId", "content", "desc", "startDate", "dueDate", "isAllDay",
-                     "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"):
-            val = params.get(key) if key != "content" else content
-            if val is not None:
-                task[key] = val
-        return json.dumps(client.create_task(task), indent=2, ensure_ascii=False)
+        task = _prepare_task(params)
+        result = client.create_task(task)
+        _verify_response(task, result)
+        return json.dumps(result, indent=2, ensure_ascii=False)
 
     if operation == "UpdateTask":
-        content = params.get("content")
-        brief = params.get("brief")
-        if brief:
-            if content is None:
-                existing = client.get_task(params["projectId"], params["taskId"])
-                content = existing.get("content") or ""
-            content = _inject_brief(brief, content)
-        if content is not None:
-            _validate_brief(content)
-        updates: dict = {"projectId": params["projectId"]}
-        for key in ("title", "content", "desc", "startDate", "dueDate", "isAllDay",
-                     "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"):
-            val = params.get(key) if key != "content" else content
-            if val is not None:
-                updates[key] = val
-        return json.dumps(client.update_task(params["taskId"], updates), indent=2, ensure_ascii=False)
+        if params.get("brief") and params.get("content") is None:
+            existing = client.get_task(params["projectId"], params["taskId"])
+            params["content"] = existing.get("content") or ""
+        task = _prepare_task(params, is_update=True)
+        result = client.update_task(params["taskId"], task)
+        _verify_response(task, result)
+        return json.dumps(result, indent=2, ensure_ascii=False)
 
     if operation == "CompleteTask":
         client.complete_task(params["projectId"], params["taskId"])
         return f"Task {params['taskId']} marked as completed."
 
     if operation == "CreateProject":
-        proj_params = {"name": params["name"]}
-        for key in ("color", "viewMode", "kind"):
-            if params.get(key) is not None:
-                proj_params[key] = params[key]
-        return json.dumps(client.create_project(proj_params), indent=2, ensure_ascii=False)
+        proj = _prepare_project(params)
+        result = client.create_project(proj)
+        _verify_response(proj, result)
+        return json.dumps(result, indent=2, ensure_ascii=False)
 
     if operation == "UpdateProject":
-        updates = {}
-        for key in ("name", "color", "viewMode", "kind"):
-            if params.get(key) is not None:
-                updates[key] = params[key]
-        return json.dumps(client.update_project(params["projectId"], updates), indent=2, ensure_ascii=False)
+        proj = _prepare_project(params, is_update=True)
+        result = client.update_project(params["projectId"], proj)
+        _verify_response(proj, result)
+        return json.dumps(result, indent=2, ensure_ascii=False)
 
     if operation == "BatchCreateTasks":
-        tasks = params["tasks"]
-        for i, task in enumerate(tasks):
-            if "brief" in task:
-                task = dict(task)
-                task["content"] = _inject_brief(task.pop("brief"), task.get("content"))
-                tasks[i] = task
-            _validate_brief(task.get("content"))
-        return json.dumps(client.batch_create_tasks(tasks), indent=2, ensure_ascii=False)
+        prepared = [_prepare_task(t) for t in params["tasks"]]
+        return json.dumps(client.batch_create_tasks(prepared), indent=2, ensure_ascii=False)
 
     # ── Delete operations ────────────────────────────────────────────────
     if operation == "DeleteTask":

@@ -87,7 +87,7 @@ class TickTickClient:
     def create_project(self, params):
         body = {"name": params["name"]}
         for key in ("color", "viewMode", "kind"):
-            if params.get(key):
+            if params.get(key) is not None:
                 body[key] = params[key]
         return self._request("POST", "/project", body)
 
