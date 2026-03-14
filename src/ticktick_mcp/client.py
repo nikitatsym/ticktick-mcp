@@ -3,7 +3,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
-from .auth import get_access_token, load_tokens, refresh_access_token, save_tokens
+from .auth import get_access_token
 
 API_BASE = "https://api.ticktick.com/open/v1"
 
@@ -17,7 +17,7 @@ class TickTickClient:
 
     def _token(self):
         if not self._access_token:
-            self._access_token = get_access_token(self._client_id, self._client_secret)
+            self._access_token = get_access_token()
         return self._access_token
 
     def _do_http(self, method, endpoint, token, body=None):
@@ -39,24 +39,11 @@ class TickTickClient:
     def _request(self, method, endpoint, body=None):
         token = self._token()
         status, data = self._do_http(method, endpoint, token, body)
-
-        # On 401, try refresh
-        if status == 401:
-            tokens = load_tokens()
-            if tokens and tokens.get("refresh_token") and self._client_id and self._client_secret:
-                try:
-                    new_tokens = refresh_access_token(tokens["refresh_token"], self._client_id, self._client_secret)
-                    save_tokens(new_tokens)
-                    self._access_token = new_tokens["access_token"]
-                    status, data = self._do_http(method, endpoint, new_tokens["access_token"], body)
-                except Exception:
-                    pass
-
         if status >= 400:
             raise Exception(f"TickTick API error {status} {method} {endpoint}: {data}")
         return data
 
-    # ── Inbox ───────────────────────────────────────────────
+    # ── Inbox ───────────────────────────────────────────
 
     def get_inbox_id(self):
         if self._inbox_id:
@@ -73,7 +60,7 @@ class TickTickClient:
         inbox_id = self.get_inbox_id()
         return self._request("GET", f"/project/{inbox_id}/data")
 
-    # ── Projects ──────────────────────────────────────────────
+    # ── Projects ──────────────────────────────────────────
 
     def list_projects(self):
         return self._request("GET", "/project")
@@ -97,7 +84,7 @@ class TickTickClient:
     def delete_project(self, project_id):
         return self._request("DELETE", f"/project/{project_id}")
 
-    # ── Tasks ─────────────────────────────────────────────────
+    # ── Tasks ─────────────────────────────────────────────
 
     def get_task(self, project_id, task_id):
         return self._request("GET", f"/project/{project_id}/task/{task_id}")
@@ -114,7 +101,7 @@ class TickTickClient:
     def delete_task(self, project_id, task_id):
         return self._request("DELETE", f"/project/{project_id}/task/{task_id}")
 
-    # ── Today ─────────────────────────────────────────────────
+    # ── Today ─────────────────────────────────────────────
 
     @staticmethod
     def _parse_date(date_str):

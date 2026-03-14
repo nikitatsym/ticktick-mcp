@@ -106,23 +106,12 @@
 
     <hr class="divider">
 
-    <label class="toggle-row" for="optBrief">
-      <input type="checkbox" id="optBrief" checked onchange="refreshConfig()">
-      Require &lt;brief&gt; tag on task create/edit
-    </label>
-    <div class="toggle-hint">Agents must include a &lt;brief&gt;summary&lt;/brief&gt; tag in task content</div>
-
-    <div id="briefMaxRow" style="margin-top:.5rem;margin-left:1.6rem">
-      <label for="optBriefMax" style="display:inline;font-size:.8rem">Max length:</label>
-      <input id="optBriefMax" type="text" value="200" onchange="refreshConfig()"
-        style="width:5rem;display:inline-block;padding:.3rem .5rem;font-size:.8rem">
+    <div style="margin-top:1rem">
+      <label for="optBriefMax" style="display:inline;font-size:.85rem;color:#cbd5e1">Brief max length:</label>
+      <input id="optBriefMax" type="text" value="100" onchange="refreshConfig()"
+        style="width:5rem;display:inline-block;padding:.3rem .5rem;font-size:.85rem;margin-left:.5rem">
+      <div class="toggle-hint" style="margin-left:0">0 = off, &gt;0 = require &lt;brief&gt; tag and cap length</div>
     </div>
-
-    <label class="toggle-row" for="optSlim">
-      <input type="checkbox" id="optSlim" checked onchange="refreshConfig()">
-      Slim mode by default
-    </label>
-    <div class="toggle-hint">Strip verbose fields from task listings to save tokens</div>
 
 
 
@@ -167,16 +156,10 @@ function refreshConfig() {
     TICKTICK_ACCESS_TOKEN: 'YOUR_ACCESS_TOKEN',
   };
 
-  const requireBrief = document.getElementById('optBrief').checked;
   const briefMax = document.getElementById('optBriefMax').value.trim();
-  const slim = document.getElementById('optSlim').checked;
-  document.getElementById('briefMaxRow').style.display = requireBrief ? 'block' : 'none';
-
-  if (requireBrief) {
-    env.TICKTICK_REQUIRE_BRIEF = 'true';
-    if (briefMax && briefMax !== '200') env.TICKTICK_BRIEF_MAX_LENGTH = briefMax;
+  if (briefMax && briefMax !== '100') {
+    env.MCP_TICKTICK_BRIEF_MAX = briefMax;
   }
-  if (slim) env.TICKTICK_SLIM_DEFAULT = 'true';
 
   const config = {
     mcpServers: {
@@ -262,19 +245,16 @@ async function handleCallback() {
   localStorage.removeItem(LS_KEY);
   localStorage.removeItem(LS_KEY + '_state');
 
+  if (!tokens) {
+    showError('Token exchange failed (likely blocked by CORS). Try a different browser or use curl to exchange the auth code manually. See README for details.');
+    return;
+  }
+
   const env = {
     TICKTICK_CLIENT_ID: clientId,
     TICKTICK_CLIENT_SECRET: clientSecret,
+    TICKTICK_ACCESS_TOKEN: tokens.access_token,
   };
-
-  if (tokens) {
-    env.TICKTICK_ACCESS_TOKEN = tokens.access_token;
-    if (tokens.refresh_token) {
-      env.TICKTICK_REFRESH_TOKEN = tokens.refresh_token;
-    }
-  } else {
-    env.TICKTICK_AUTH_CODE = code;
-  }
 
   window._configEnv = env;
 
@@ -293,12 +273,6 @@ async function handleCallback() {
   copyBtn.classList.add('btn-copy');
 
   refreshConfig();
-
-  const noteEl = document.getElementById('codeNote');
-  if (!tokens) {
-    noteEl.textContent = 'Note: The auth code (TICKTICK_AUTH_CODE) will be automatically exchanged for tokens on first server start. The code is single-use and expires in a few minutes — paste the config promptly.';
-    noteEl.classList.remove('hidden');
-  }
 
   // Add "start over" button
   const divider = document.querySelector('.divider');

@@ -95,8 +95,6 @@ def test_help_delete():
 def test_help_includes_params():
     """Help text should auto-include function parameter names."""
     text = _build_help("ticktick_read")
-    assert "desc" in text
-    assert "slim" in text
     assert "projectId" in text
 
 

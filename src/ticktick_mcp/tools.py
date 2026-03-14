@@ -6,12 +6,8 @@ from typing import Optional
 
 from .client import TickTickClient
 from .prepare import (
-    _DEFAULT_DESC,
-    _DEFAULT_DESC_COMPACT,
-    _DEFAULT_SLIM,
     _prepare_project,
     _prepare_task,
-    _process_tasks,
     _slim_task,
     _verify_response,
 )
@@ -74,26 +70,19 @@ def ticktick_version() -> str:
 
 
 @_op(ticktick_read)
-def get_today(desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT, slim: bool = _DEFAULT_SLIM) -> str:
+def get_today() -> str:
     """Get all uncompleted tasks due today or earlier (overdue). Same as the 'Today' view in TickTick."""
-    tasks = _get_client().get_today_tasks()
-    if slim:
-        tasks = [_slim_task(t, desc, descCompact) for t in tasks]
-    else:
-        tasks = _process_tasks(tasks, desc, descCompact)
+    tasks = [_slim_task(t) for t in _get_client().get_today_tasks()]
     return json.dumps(tasks, indent=2, ensure_ascii=False)
 
 
 @_op(ticktick_read)
-def get_inbox(desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT, slim: bool = _DEFAULT_SLIM) -> str:
+def get_inbox() -> str:
     """Get the Inbox project with all its tasks. The Inbox is NOT included in ListProjects."""
     data = _get_client().get_inbox_with_data()
     if "tasks" in data:
         data = dict(data)
-        if slim:
-            data["tasks"] = [_slim_task(t, desc, descCompact) for t in data["tasks"]]
-        else:
-            data["tasks"] = _process_tasks(data["tasks"], desc, descCompact)
+        data["tasks"] = [_slim_task(t) for t in data["tasks"]]
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 
@@ -116,15 +105,12 @@ def get_project(projectId: str) -> str:
 
 
 @_op(ticktick_read)
-def get_project_with_data(projectId: str, desc: bool = _DEFAULT_DESC, descCompact: bool = _DEFAULT_DESC_COMPACT, slim: bool = _DEFAULT_SLIM) -> str:
+def get_project_with_data(projectId: str) -> str:
     """Get a TickTick project with all its tasks and columns. For inbox tasks, use GetInbox."""
     data = _get_client().get_project_with_data(projectId)
     if "tasks" in data:
         data = dict(data)
-        if slim:
-            data["tasks"] = [_slim_task(t, desc, descCompact) for t in data["tasks"]]
-        else:
-            data["tasks"] = _process_tasks(data["tasks"], desc, descCompact)
+        data["tasks"] = [_slim_task(t) for t in data["tasks"]]
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 
