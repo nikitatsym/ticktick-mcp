@@ -118,8 +118,9 @@
       Default timezone
     </label>
     <div id="tzField" class="hidden" style="margin-top:.4rem;margin-left:1.6rem">
-      <input id="optTimezone" type="text" onchange="refreshConfig()"
+      <input id="optTimezone" type="text" list="tzList" onchange="refreshConfig()"
         style="width:14rem;display:inline-block;padding:.3rem .5rem;font-size:.85rem">
+      <datalist id="tzList"></datalist>
       <div class="toggle-hint" style="margin-left:0">IANA name. Used when tasks have a time but no explicit timeZone.</div>
     </div>
 
@@ -357,8 +358,12 @@ document.getElementById('optTzEnabled').addEventListener('change', function() {
   document.getElementById('tzField').classList.toggle('hidden', !this.checked);
 });
 
-// Pre-fill timezone from browser
+// Populate timezone datalist and pre-fill from browser
 try {
+  const dl = document.getElementById('tzList');
+  for (const tz of Intl.supportedValuesOf('timeZone')) {
+    dl.appendChild(Object.assign(document.createElement('option'), { value: tz }));
+  }
   document.getElementById('optTimezone').value = Intl.DateTimeFormat().resolvedOptions().timeZone;
 } catch (_) {}
 
