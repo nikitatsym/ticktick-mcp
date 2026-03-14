@@ -29,7 +29,7 @@ def test_read_count():
 
 def test_write_count():
     count = sum(1 for _, (s, _, _) in _OPERATIONS.items() if s == "write")
-    assert count == 6
+    assert count == 5
 
 
 def test_delete_count():
@@ -38,7 +38,7 @@ def test_delete_count():
 
 
 def test_total_operations():
-    assert len(_OPERATIONS) == 15
+    assert len(_OPERATIONS) == 14
 
 
 # ── Help text ────────────────────────────────────────────────────────────────
@@ -61,13 +61,12 @@ def test_help_read():
 
 def test_help_write():
     text = _build_help("write")
-    assert "6 operations available:" in text
+    assert "5 operations available:" in text
     assert "CreateTask" in text
     assert "UpdateTask" in text
     assert "CompleteTask" in text
     assert "CreateProject" in text
     assert "UpdateProject" in text
-    assert "BatchCreateTasks" in text
 
 
 def test_help_delete():
@@ -269,18 +268,6 @@ def test_update_project(mock_client):
     })))
     assert result["name"] == "Renamed"
     mock_client.update_project.assert_called_with("p1", {"name": "Renamed"})
-
-
-def test_batch_create_tasks(mock_client):
-    mock_client.batch_create_tasks.return_value = [{"id": "t1"}, {"id": "t2"}]
-    tasks = [
-        {"title": "A", "brief": "Task A"},
-        {"title": "B", "brief": "Task B"},
-    ]
-    result = json.loads(_dispatch("BatchCreateTasks", "write", json.dumps({"tasks": tasks})))
-    assert len(result) == 2
-    call_args = mock_client.batch_create_tasks.call_args[0][0]
-    assert "<brief>Task A</brief>" in call_args[0]["content"]
 
 
 # ── Delete dispatch ──────────────────────────────────────────────────────────

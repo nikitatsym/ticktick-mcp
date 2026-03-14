@@ -55,7 +55,6 @@ _OPERATIONS: dict[str, tuple[str, list[str], str]] = {
     "CompleteTask": ("write", ["projectId", "taskId"], "Mark a task as completed."),
     "CreateProject": ("write", ["name", "color", "viewMode", "kind"], "Create a new TickTick project. viewMode: list, kanban, or timeline. kind: TASK or NOTE."),
     "UpdateProject": ("write", ["projectId", "name", "color", "viewMode", "kind"], "Update an existing TickTick project. viewMode: list, kanban, or timeline. kind: TASK or NOTE."),
-    "BatchCreateTasks": ("write", ["tasks"], "Create multiple tasks at once. Each task supports same fields as CreateTask (title required). dueDate/startDate: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS±HHMM. priority: 0/1/3/5."),
     # delete
     "DeleteTask": ("delete", ["projectId", "taskId"], "Delete a task from TickTick."),
     "DeleteProject": ("delete", ["projectId"], "Delete a TickTick project."),
@@ -180,10 +179,6 @@ def _dispatch(operation: str, scope: str, params_str: str) -> str:
         result = client.update_project(params["projectId"], proj)
         _verify_response(proj, result)
         return json.dumps(result, indent=2, ensure_ascii=False)
-
-    if operation == "BatchCreateTasks":
-        prepared = [_prepare_task(t) for t in params["tasks"]]
-        return json.dumps(client.batch_create_tasks(prepared), indent=2, ensure_ascii=False)
 
     # ── Delete operations ────────────────────────────────────────────────
     if operation == "DeleteTask":
