@@ -102,19 +102,19 @@ def test_help_includes_params():
 
 
 def test_read_op_via_write_tool():
-    result = json.loads(_dispatch("GetToday", "ticktick_write", "{}"))
+    result = json.loads(_dispatch("GetToday", "ticktick_write", {}))
     assert "error" in result
     assert "ticktick_read" in result["error"]
 
 
 def test_write_op_via_read_tool():
-    result = json.loads(_dispatch("CreateTask", "ticktick_read", "{}"))
+    result = json.loads(_dispatch("CreateTask", "ticktick_read", {}))
     assert "error" in result
     assert "ticktick_write" in result["error"]
 
 
 def test_delete_op_via_write_tool():
-    result = json.loads(_dispatch("DeleteTask", "ticktick_write", "{}"))
+    result = json.loads(_dispatch("DeleteTask", "ticktick_write", {}))
     assert "error" in result
     assert "ticktick_delete" in result["error"]
 
@@ -123,7 +123,7 @@ def test_delete_op_via_write_tool():
 
 
 def test_unknown_operation():
-    result = json.loads(_dispatch("NonExistent", "ticktick_read", "{}"))
+    result = json.loads(_dispatch("NonExistent", "ticktick_read", {}))
     assert "error" in result
     assert "Unknown operation" in result["error"]
     assert "help" in result["error"]
@@ -164,7 +164,7 @@ def test_get_today(mock_client):
     mock_client.get_today_tasks.return_value = [
         {"id": "1", "title": "Task 1", "status": 0, "content": "<brief>Do stuff</brief>"}
     ]
-    result = json.loads(_dispatch("GetToday", "ticktick_read", "{}"))
+    result = json.loads(_dispatch("GetToday", "ticktick_read", {}))
     assert isinstance(result, list)
     assert result[0]["id"] == "1"
     mock_client.get_today_tasks.assert_called_once()
@@ -174,7 +174,7 @@ def test_get_today_slim(mock_client):
     mock_client.get_today_tasks.return_value = [
         {"id": "1", "title": "T", "status": 0, "content": "<brief>B</brief>", "sortOrder": 123}
     ]
-    result = json.loads(_dispatch("GetToday", "ticktick_read", '{"slim": true}'))
+    result = json.loads(_dispatch("GetToday", "ticktick_read", {"slim": True}))
     assert "sortOrder" not in result[0]
 
 
@@ -183,27 +183,27 @@ def test_get_inbox(mock_client):
         "project": {"id": "inbox1"},
         "tasks": [{"id": "t1", "title": "Inbox task", "status": 0}],
     }
-    result = json.loads(_dispatch("GetInbox", "ticktick_read", "{}"))
+    result = json.loads(_dispatch("GetInbox", "ticktick_read", {}))
     assert "tasks" in result
     mock_client.get_inbox_with_data.assert_called_once()
 
 
 def test_get_inbox_id(mock_client):
     mock_client.get_inbox_id.return_value = "inbox123"
-    result = json.loads(_dispatch("GetInboxId", "ticktick_read", "{}"))
+    result = json.loads(_dispatch("GetInboxId", "ticktick_read", {}))
     assert result["inboxId"] == "inbox123"
 
 
 def test_list_projects(mock_client):
     mock_client.list_projects.return_value = [{"id": "p1", "name": "Work"}]
-    result = json.loads(_dispatch("ListProjects", "ticktick_read", "{}"))
+    result = json.loads(_dispatch("ListProjects", "ticktick_read", {}))
     assert len(result) == 1
     assert result[0]["name"] == "Work"
 
 
 def test_get_project(mock_client):
     mock_client.get_project.return_value = {"id": "p1", "name": "Work"}
-    result = json.loads(_dispatch("GetProject", "ticktick_read", '{"projectId": "p1"}'))
+    result = json.loads(_dispatch("GetProject", "ticktick_read", {"projectId": "p1"}))
     assert result["id"] == "p1"
     mock_client.get_project.assert_called_with("p1")
 
@@ -213,14 +213,14 @@ def test_get_project_with_data(mock_client):
         "project": {"id": "p1"},
         "tasks": [{"id": "t1", "title": "T", "status": 0}],
     }
-    result = json.loads(_dispatch("GetProjectWithData", "ticktick_read", '{"projectId": "p1"}'))
+    result = json.loads(_dispatch("GetProjectWithData", "ticktick_read", {"projectId": "p1"}))
     assert "tasks" in result
     mock_client.get_project_with_data.assert_called_with("p1")
 
 
 def test_get_task(mock_client):
     mock_client.get_task.return_value = {"id": "t1", "title": "Buy milk", "projectId": "p1"}
-    result = json.loads(_dispatch("GetTask", "ticktick_read", '{"projectId": "p1", "taskId": "t1"}'))
+    result = json.loads(_dispatch("GetTask", "ticktick_read", {"projectId": "p1", "taskId": "t1"}))
     assert result["title"] == "Buy milk"
     mock_client.get_task.assert_called_with("p1", "t1")
 
@@ -230,10 +230,10 @@ def test_get_task(mock_client):
 
 def test_create_task(mock_client):
     mock_client.create_task.return_value = {"id": "new1", "title": "Buy milk", "content": "<brief>Buy milk</brief>"}
-    result = json.loads(_dispatch("CreateTask", "ticktick_write", json.dumps({
+    result = json.loads(_dispatch("CreateTask", "ticktick_write", {
         "title": "Buy milk",
         "brief": "Buy milk",
-    })))
+    }))
     assert result["id"] == "new1"
     call_args = mock_client.create_task.call_args[0][0]
     assert "<brief>Buy milk</brief>" in call_args["content"]
@@ -243,14 +243,14 @@ def test_create_task_no_brief_validates(mock_client):
     """Without brief param, content must have brief tag (when REQUIRE_BRIEF is on)."""
     with patch("ticktick_mcp.prepare._validate_brief", side_effect=ValueError("must contain")):
         with pytest.raises(ValueError, match="must contain"):
-            _dispatch("CreateTask", "ticktick_write", json.dumps({"title": "T", "content": "no tag"}))
+            _dispatch("CreateTask", "ticktick_write", {"title": "T", "content": "no tag"})
 
 
 def test_update_task(mock_client):
     mock_client.update_task.return_value = {"id": "t1", "title": "Updated", "projectId": "p1"}
-    result = json.loads(_dispatch("UpdateTask", "ticktick_write", json.dumps({
+    result = json.loads(_dispatch("UpdateTask", "ticktick_write", {
         "taskId": "t1", "projectId": "p1", "title": "Updated",
-    })))
+    }))
     assert result["title"] == "Updated"
     mock_client.update_task.assert_called_once()
 
@@ -258,23 +258,23 @@ def test_update_task(mock_client):
 def test_update_task_with_brief_fetches_existing(mock_client):
     mock_client.get_task.return_value = {"id": "t1", "content": "old stuff"}
     mock_client.update_task.return_value = {"id": "t1", "projectId": "p1", "content": "<brief>New</brief>\nold stuff"}
-    result = json.loads(_dispatch("UpdateTask", "ticktick_write", json.dumps({
+    result = json.loads(_dispatch("UpdateTask", "ticktick_write", {
         "taskId": "t1", "projectId": "p1", "brief": "New",
-    })))
+    }))
     mock_client.get_task.assert_called_with("p1", "t1")
     call_args = mock_client.update_task.call_args[0][1]
     assert "<brief>New</brief>" in call_args["content"]
 
 
 def test_complete_task(mock_client):
-    result = _dispatch("CompleteTask", "ticktick_write", json.dumps({"projectId": "p1", "taskId": "t1"}))
+    result = _dispatch("CompleteTask", "ticktick_write", {"projectId": "p1", "taskId": "t1"})
     assert "completed" in result
     mock_client.complete_task.assert_called_with("p1", "t1")
 
 
 def test_create_project(mock_client):
     mock_client.create_project.return_value = {"id": "p1", "name": "New", "viewMode": "kanban"}
-    result = json.loads(_dispatch("CreateProject", "ticktick_write", json.dumps({"name": "New", "viewMode": "kanban"})))
+    result = json.loads(_dispatch("CreateProject", "ticktick_write", {"name": "New", "viewMode": "kanban"}))
     assert result["name"] == "New"
     call_args = mock_client.create_project.call_args[0][0]
     assert call_args["viewMode"] == "kanban"
@@ -282,9 +282,9 @@ def test_create_project(mock_client):
 
 def test_update_project(mock_client):
     mock_client.update_project.return_value = {"id": "p1", "name": "Renamed"}
-    result = json.loads(_dispatch("UpdateProject", "ticktick_write", json.dumps({
+    result = json.loads(_dispatch("UpdateProject", "ticktick_write", {
         "projectId": "p1", "name": "Renamed",
-    })))
+    }))
     assert result["name"] == "Renamed"
     mock_client.update_project.assert_called_with("p1", {"name": "Renamed"})
 
@@ -293,13 +293,13 @@ def test_update_project(mock_client):
 
 
 def test_delete_task(mock_client):
-    result = _dispatch("DeleteTask", "ticktick_delete", json.dumps({"projectId": "p1", "taskId": "t1"}))
+    result = _dispatch("DeleteTask", "ticktick_delete", {"projectId": "p1", "taskId": "t1"})
     assert "deleted" in result
     mock_client.delete_task.assert_called_with("p1", "t1")
 
 
 def test_delete_project(mock_client):
-    result = _dispatch("DeleteProject", "ticktick_delete", json.dumps({"projectId": "p1"}))
+    result = _dispatch("DeleteProject", "ticktick_delete", {"projectId": "p1"})
     assert "deleted" in result
     mock_client.delete_project.assert_called_with("p1")
 
@@ -309,17 +309,5 @@ def test_delete_project(mock_client):
 
 def test_empty_params(mock_client):
     mock_client.list_projects.return_value = []
-    result = json.loads(_dispatch("ListProjects", "ticktick_read", ""))
-    assert result == []
-
-
-def test_whitespace_params(mock_client):
-    mock_client.list_projects.return_value = []
-    result = json.loads(_dispatch("ListProjects", "ticktick_read", "   "))
-    assert result == []
-
-
-def test_none_like_params(mock_client):
-    mock_client.list_projects.return_value = []
-    result = json.loads(_dispatch("ListProjects", "ticktick_read", "{}"))
+    result = json.loads(_dispatch("ListProjects", "ticktick_read", {}))
     assert result == []
