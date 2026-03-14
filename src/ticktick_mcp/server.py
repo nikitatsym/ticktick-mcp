@@ -75,7 +75,7 @@ def _build_help(group_name: str) -> str:
     return f"{len(lines)} operations available:\n" + "\n".join(lines)
 
 
-def _dispatch(operation: str, group_name: str, params_str: str) -> str:
+def _dispatch(operation: str, group_name: str, params: dict) -> str:
     """Dispatch an operation call to the right function."""
     ops = _group_ops[group_name]
     if operation not in ops:
@@ -90,7 +90,6 @@ def _dispatch(operation: str, group_name: str, params_str: str) -> str:
         })
 
     fn = ops[operation]
-    params = json.loads(params_str) if params_str and params_str.strip() else {}
     return _coerce_call(fn, params)
 
 
@@ -120,7 +119,7 @@ def _register_tools():
             _all_grouped[pascal_name] = group_name
 
         def _make_tool(gname, gdoc):
-            def tool_fn(operation: str, params: str = "{}") -> str:
+            def tool_fn(operation: str, params: dict = {}) -> str:
                 if operation == "help":
                     return _build_help(gname)
                 return _dispatch(operation, gname, params)
