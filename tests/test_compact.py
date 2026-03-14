@@ -1,51 +1,54 @@
-"""Tests for compact mode (3 meta-tools)."""
+"""Tests for grouped tool dispatch."""
 
 import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ticktick_mcp.server_compact import (
-    _OPERATIONS,
-    _SCOPE_NAMES,
+from ticktick_mcp.server import (
+    _GROUPS,
     _build_help,
     _dispatch,
     _parse_bool,
+    _to_pascal,
 )
 
 
 # ── Registry validation ─────────────────────────────────────────────────────
 
 
-def test_all_scopes_valid():
-    for op, (scope, _, _) in _OPERATIONS.items():
-        assert scope in _SCOPE_NAMES, f"{op} has unknown scope {scope!r}"
-
-
 def test_read_count():
-    count = sum(1 for _, (s, _, _) in _OPERATIONS.items() if s == "read")
-    assert count == 7
+    assert len(_GROUPS["ticktick_read"]) == 7
 
 
 def test_write_count():
-    count = sum(1 for _, (s, _, _) in _OPERATIONS.items() if s == "write")
-    assert count == 5
+    assert len(_GROUPS["ticktick_write"]) == 5
 
 
 def test_delete_count():
-    count = sum(1 for _, (s, _, _) in _OPERATIONS.items() if s == "delete")
-    assert count == 2
+    assert len(_GROUPS["ticktick_delete"]) == 2
 
 
 def test_total_operations():
-    assert len(_OPERATIONS) == 14
+    total = sum(len(fns) for fns in _GROUPS.values())
+    assert total == 14
+
+
+# ── _to_pascal ───────────────────────────────────────────────────────────────
+
+
+def test_to_pascal():
+    assert _to_pascal("get_today") == "GetToday"
+    assert _to_pascal("create_task") == "CreateTask"
+    assert _to_pascal("get_project_with_data") == "GetProjectWithData"
+    assert _to_pascal("list_projects") == "ListProjects"
 
 
 # ── Help text ────────────────────────────────────────────────────────────────
 
 
 def test_help_read():
-    text = _build_help("read")
+    text = _build_help("ticktick_read")
     assert "7 operations available:" in text
     assert "GetToday" in text
     assert "GetInbox" in text
@@ -60,7 +63,7 @@ def test_help_read():
 
 
 def test_help_write():
-    text = _build_help("write")
+    text = _build_help("ticktick_write")
     assert "5 operations available:" in text
     assert "CreateTask" in text
     assert "UpdateTask" in text
@@ -70,33 +73,38 @@ def test_help_write():
 
 
 def test_help_delete():
-    text = _build_help("delete")
+    text = _build_help("ticktick_delete")
     assert "2 operations available:" in text
     assert "DeleteTask" in text
     assert "DeleteProject" in text
+
+
+def test_help_includes_params():
+    """Help text should auto-include function parameter names."""
+    text = _build_help("ticktick_read")
+    assert "desc" in text
+    assert "slim" in text
+    assert "projectId" in text
 
 
 # ── Scope mismatch ───────────────────────────────────────────────────────────
 
 
 def test_read_op_via_write_tool():
-    result = json.loads(_dispatch("GetToday", "write", "{}"))
+    result = json.loads(_dispatch("GetToday", "ticktick_write", "{}"))
     assert "error" in result
-    assert "read operation" in result["error"]
     assert "ticktick_read" in result["error"]
 
 
 def test_write_op_via_read_tool():
-    result = json.loads(_dispatch("CreateTask", "read", "{}"))
+    result = json.loads(_dispatch("CreateTask", "ticktick_read", "{}"))
     assert "error" in result
-    assert "write operation" in result["error"]
     assert "ticktick_write" in result["error"]
 
 
 def test_delete_op_via_write_tool():
-    result = json.loads(_dispatch("DeleteTask", "write", "{}"))
+    result = json.loads(_dispatch("DeleteTask", "ticktick_write", "{}"))
     assert "error" in result
-    assert "delete operation" in result["error"]
     assert "ticktick_delete" in result["error"]
 
 
@@ -104,7 +112,7 @@ def test_delete_op_via_write_tool():
 
 
 def test_unknown_operation():
-    result = json.loads(_dispatch("NonExistent", "read", "{}"))
+    result = json.loads(_dispatch("NonExistent", "ticktick_read", "{}"))
     assert "error" in result
     assert "Unknown operation" in result["error"]
     assert "help" in result["error"]
@@ -137,7 +145,7 @@ def test_parse_bool_string():
 @pytest.fixture()
 def mock_client():
     client = MagicMock()
-    with patch("ticktick_mcp.server_compact._get_client", return_value=client):
+    with patch("ticktick_mcp.tools._get_client", return_value=client):
         yield client
 
 
@@ -145,7 +153,7 @@ def test_get_today(mock_client):
     mock_client.get_today_tasks.return_value = [
         {"id": "1", "title": "Task 1", "status": 0, "content": "<brief>Do stuff</brief>"}
     ]
-    result = json.loads(_dispatch("GetToday", "read", "{}"))
+    result = json.loads(_dispatch("GetToday", "ticktick_read", "{}"))
     assert isinstance(result, list)
     assert result[0]["id"] == "1"
     mock_client.get_today_tasks.assert_called_once()
@@ -155,7 +163,7 @@ def test_get_today_slim(mock_client):
     mock_client.get_today_tasks.return_value = [
         {"id": "1", "title": "T", "status": 0, "content": "<brief>B</brief>", "sortOrder": 123}
     ]
-    result = json.loads(_dispatch("GetToday", "read", '{"slim": true}'))
+    result = json.loads(_dispatch("GetToday", "ticktick_read", '{"slim": true}'))
     assert "sortOrder" not in result[0]
 
 
@@ -164,27 +172,27 @@ def test_get_inbox(mock_client):
         "project": {"id": "inbox1"},
         "tasks": [{"id": "t1", "title": "Inbox task", "status": 0}],
     }
-    result = json.loads(_dispatch("GetInbox", "read", "{}"))
+    result = json.loads(_dispatch("GetInbox", "ticktick_read", "{}"))
     assert "tasks" in result
     mock_client.get_inbox_with_data.assert_called_once()
 
 
 def test_get_inbox_id(mock_client):
     mock_client.get_inbox_id.return_value = "inbox123"
-    result = json.loads(_dispatch("GetInboxId", "read", "{}"))
+    result = json.loads(_dispatch("GetInboxId", "ticktick_read", "{}"))
     assert result["inboxId"] == "inbox123"
 
 
 def test_list_projects(mock_client):
     mock_client.list_projects.return_value = [{"id": "p1", "name": "Work"}]
-    result = json.loads(_dispatch("ListProjects", "read", "{}"))
+    result = json.loads(_dispatch("ListProjects", "ticktick_read", "{}"))
     assert len(result) == 1
     assert result[0]["name"] == "Work"
 
 
 def test_get_project(mock_client):
     mock_client.get_project.return_value = {"id": "p1", "name": "Work"}
-    result = json.loads(_dispatch("GetProject", "read", '{"projectId": "p1"}'))
+    result = json.loads(_dispatch("GetProject", "ticktick_read", '{"projectId": "p1"}'))
     assert result["id"] == "p1"
     mock_client.get_project.assert_called_with("p1")
 
@@ -194,14 +202,14 @@ def test_get_project_with_data(mock_client):
         "project": {"id": "p1"},
         "tasks": [{"id": "t1", "title": "T", "status": 0}],
     }
-    result = json.loads(_dispatch("GetProjectWithData", "read", '{"projectId": "p1"}'))
+    result = json.loads(_dispatch("GetProjectWithData", "ticktick_read", '{"projectId": "p1"}'))
     assert "tasks" in result
     mock_client.get_project_with_data.assert_called_with("p1")
 
 
 def test_get_task(mock_client):
     mock_client.get_task.return_value = {"id": "t1", "title": "Buy milk", "projectId": "p1"}
-    result = json.loads(_dispatch("GetTask", "read", '{"projectId": "p1", "taskId": "t1"}'))
+    result = json.loads(_dispatch("GetTask", "ticktick_read", '{"projectId": "p1", "taskId": "t1"}'))
     assert result["title"] == "Buy milk"
     mock_client.get_task.assert_called_with("p1", "t1")
 
@@ -211,7 +219,7 @@ def test_get_task(mock_client):
 
 def test_create_task(mock_client):
     mock_client.create_task.return_value = {"id": "new1", "title": "Buy milk", "content": "<brief>Buy milk</brief>"}
-    result = json.loads(_dispatch("CreateTask", "write", json.dumps({
+    result = json.loads(_dispatch("CreateTask", "ticktick_write", json.dumps({
         "title": "Buy milk",
         "brief": "Buy milk",
     })))
@@ -222,14 +230,14 @@ def test_create_task(mock_client):
 
 def test_create_task_no_brief_validates(mock_client):
     """Without brief param, content must have brief tag (when REQUIRE_BRIEF is on)."""
-    with patch("ticktick_mcp.server._validate_brief", side_effect=ValueError("must contain")):
+    with patch("ticktick_mcp.prepare._validate_brief", side_effect=ValueError("must contain")):
         with pytest.raises(ValueError, match="must contain"):
-            _dispatch("CreateTask", "write", json.dumps({"title": "T", "content": "no tag"}))
+            _dispatch("CreateTask", "ticktick_write", json.dumps({"title": "T", "content": "no tag"}))
 
 
 def test_update_task(mock_client):
     mock_client.update_task.return_value = {"id": "t1", "title": "Updated", "projectId": "p1"}
-    result = json.loads(_dispatch("UpdateTask", "write", json.dumps({
+    result = json.loads(_dispatch("UpdateTask", "ticktick_write", json.dumps({
         "taskId": "t1", "projectId": "p1", "title": "Updated",
     })))
     assert result["title"] == "Updated"
@@ -239,7 +247,7 @@ def test_update_task(mock_client):
 def test_update_task_with_brief_fetches_existing(mock_client):
     mock_client.get_task.return_value = {"id": "t1", "content": "old stuff"}
     mock_client.update_task.return_value = {"id": "t1", "projectId": "p1", "content": "<brief>New</brief>\nold stuff"}
-    result = json.loads(_dispatch("UpdateTask", "write", json.dumps({
+    result = json.loads(_dispatch("UpdateTask", "ticktick_write", json.dumps({
         "taskId": "t1", "projectId": "p1", "brief": "New",
     })))
     mock_client.get_task.assert_called_with("p1", "t1")
@@ -248,14 +256,14 @@ def test_update_task_with_brief_fetches_existing(mock_client):
 
 
 def test_complete_task(mock_client):
-    result = _dispatch("CompleteTask", "write", json.dumps({"projectId": "p1", "taskId": "t1"}))
+    result = _dispatch("CompleteTask", "ticktick_write", json.dumps({"projectId": "p1", "taskId": "t1"}))
     assert "completed" in result
     mock_client.complete_task.assert_called_with("p1", "t1")
 
 
 def test_create_project(mock_client):
     mock_client.create_project.return_value = {"id": "p1", "name": "New", "viewMode": "kanban"}
-    result = json.loads(_dispatch("CreateProject", "write", json.dumps({"name": "New", "viewMode": "kanban"})))
+    result = json.loads(_dispatch("CreateProject", "ticktick_write", json.dumps({"name": "New", "viewMode": "kanban"})))
     assert result["name"] == "New"
     call_args = mock_client.create_project.call_args[0][0]
     assert call_args["viewMode"] == "kanban"
@@ -263,7 +271,7 @@ def test_create_project(mock_client):
 
 def test_update_project(mock_client):
     mock_client.update_project.return_value = {"id": "p1", "name": "Renamed"}
-    result = json.loads(_dispatch("UpdateProject", "write", json.dumps({
+    result = json.loads(_dispatch("UpdateProject", "ticktick_write", json.dumps({
         "projectId": "p1", "name": "Renamed",
     })))
     assert result["name"] == "Renamed"
@@ -274,13 +282,13 @@ def test_update_project(mock_client):
 
 
 def test_delete_task(mock_client):
-    result = _dispatch("DeleteTask", "delete", json.dumps({"projectId": "p1", "taskId": "t1"}))
+    result = _dispatch("DeleteTask", "ticktick_delete", json.dumps({"projectId": "p1", "taskId": "t1"}))
     assert "deleted" in result
     mock_client.delete_task.assert_called_with("p1", "t1")
 
 
 def test_delete_project(mock_client):
-    result = _dispatch("DeleteProject", "delete", json.dumps({"projectId": "p1"}))
+    result = _dispatch("DeleteProject", "ticktick_delete", json.dumps({"projectId": "p1"}))
     assert "deleted" in result
     mock_client.delete_project.assert_called_with("p1")
 
@@ -290,17 +298,17 @@ def test_delete_project(mock_client):
 
 def test_empty_params(mock_client):
     mock_client.list_projects.return_value = []
-    result = json.loads(_dispatch("ListProjects", "read", ""))
+    result = json.loads(_dispatch("ListProjects", "ticktick_read", ""))
     assert result == []
 
 
 def test_whitespace_params(mock_client):
     mock_client.list_projects.return_value = []
-    result = json.loads(_dispatch("ListProjects", "read", "   "))
+    result = json.loads(_dispatch("ListProjects", "ticktick_read", "   "))
     assert result == []
 
 
 def test_none_like_params(mock_client):
     mock_client.list_projects.return_value = []
-    result = json.loads(_dispatch("ListProjects", "read", "{}"))
+    result = json.loads(_dispatch("ListProjects", "ticktick_read", "{}"))
     assert result == []

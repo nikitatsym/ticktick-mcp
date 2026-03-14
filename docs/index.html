@@ -124,11 +124,7 @@
     </label>
     <div class="toggle-hint">Strip verbose fields from task listings to save tokens</div>
 
-    <label class="toggle-row" for="optCompact">
-      <input type="checkbox" id="optCompact" onchange="refreshConfig()">
-      Compact mode (3 meta-tools)
-    </label>
-    <div class="toggle-hint">Replace 15 individual tools with ticktick_read / ticktick_write / ticktick_delete</div>
+
 
     <pre id="configJson"></pre>
 
@@ -174,8 +170,6 @@ function refreshConfig() {
   const requireBrief = document.getElementById('optBrief').checked;
   const briefMax = document.getElementById('optBriefMax').value.trim();
   const slim = document.getElementById('optSlim').checked;
-  const compact = document.getElementById('optCompact').checked;
-
   document.getElementById('briefMaxRow').style.display = requireBrief ? 'block' : 'none';
 
   if (requireBrief) {
@@ -183,7 +177,6 @@ function refreshConfig() {
     if (briefMax && briefMax !== '200') env.TICKTICK_BRIEF_MAX_LENGTH = briefMax;
   }
   if (slim) env.TICKTICK_SLIM_DEFAULT = 'true';
-  if (compact) env.TICKTICK_COMPACT = 'true';
 
   const config = {
     mcpServers: {

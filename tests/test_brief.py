@@ -3,7 +3,7 @@
 import importlib
 import pytest
 
-from ticktick_mcp.server import _extract_brief, _inject_brief, _process_tasks, _slim_task
+from ticktick_mcp.prepare import _extract_brief, _inject_brief, _process_tasks, _slim_task
 
 
 # ── _extract_brief ────────────────────────────────────────────────────────────
@@ -207,49 +207,49 @@ def test_slim_missing_optional_fields():
 # ── _validate_brief ──────────────────────────────────────────────────────────
 
 
-def _reload_srv(monkeypatch, **env):
+def _reload_prepare(monkeypatch, **env):
     for k, v in env.items():
         monkeypatch.setenv(k, v)
-    import ticktick_mcp.server as srv
-    importlib.reload(srv)
-    return srv
+    import ticktick_mcp.prepare as mod
+    importlib.reload(mod)
+    return mod
 
 
 @pytest.fixture()
-def srv_on(monkeypatch):
-    return _reload_srv(monkeypatch, TICKTICK_REQUIRE_BRIEF="true", TICKTICK_BRIEF_MAX_LENGTH="200")
+def prep_on(monkeypatch):
+    return _reload_prepare(monkeypatch, TICKTICK_REQUIRE_BRIEF="true", TICKTICK_BRIEF_MAX_LENGTH="200")
 
 
 class TestValidateBrief:
-    def test_valid_brief(self, srv_on):
-        srv_on._validate_brief("<brief>Short summary</brief>\nFull body.")
+    def test_valid_brief(self, prep_on):
+        prep_on._validate_brief("<brief>Short summary</brief>\nFull body.")
 
-    def test_missing_brief_raises(self, srv_on):
+    def test_missing_brief_raises(self, prep_on):
         with pytest.raises(ValueError, match="must contain"):
-            srv_on._validate_brief("Content without brief tag")
+            prep_on._validate_brief("Content without brief tag")
 
-    def test_none_raises(self, srv_on):
+    def test_none_raises(self, prep_on):
         with pytest.raises(ValueError, match="must contain"):
-            srv_on._validate_brief(None)
+            prep_on._validate_brief(None)
 
-    def test_empty_raises(self, srv_on):
+    def test_empty_raises(self, prep_on):
         with pytest.raises(ValueError, match="must contain"):
-            srv_on._validate_brief("")
+            prep_on._validate_brief("")
 
-    def test_too_long(self, srv_on):
+    def test_too_long(self, prep_on):
         with pytest.raises(ValueError, match="too long"):
-            srv_on._validate_brief(f"<brief>{'x' * 201}</brief>")
+            prep_on._validate_brief(f"<brief>{'x' * 201}</brief>")
 
-    def test_at_max_length(self, srv_on):
-        srv_on._validate_brief(f"<brief>{'x' * 200}</brief>")
+    def test_at_max_length(self, prep_on):
+        prep_on._validate_brief(f"<brief>{'x' * 200}</brief>")
 
     def test_disabled(self, monkeypatch):
-        srv = _reload_srv(monkeypatch, TICKTICK_REQUIRE_BRIEF="false")
-        srv._validate_brief("no brief, no problem")
-        srv._validate_brief(None)
+        mod = _reload_prepare(monkeypatch, TICKTICK_REQUIRE_BRIEF="false")
+        mod._validate_brief("no brief, no problem")
+        mod._validate_brief(None)
 
     def test_custom_max_length(self, monkeypatch):
-        srv = _reload_srv(monkeypatch, TICKTICK_REQUIRE_BRIEF="true", TICKTICK_BRIEF_MAX_LENGTH="50")
-        srv._validate_brief(f"<brief>{'x' * 50}</brief>")
+        mod = _reload_prepare(monkeypatch, TICKTICK_REQUIRE_BRIEF="true", TICKTICK_BRIEF_MAX_LENGTH="50")
+        mod._validate_brief(f"<brief>{'x' * 50}</brief>")
         with pytest.raises(ValueError, match="too long"):
-            srv._validate_brief(f"<brief>{'x' * 51}</brief>")
+            mod._validate_brief(f"<brief>{'x' * 51}</brief>")
