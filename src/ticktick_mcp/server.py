@@ -175,9 +175,16 @@ def _prepare_task(params: dict, is_update: bool = False) -> dict:
             _validate_brief(content)
     else:
         _validate_brief(content)
+    isAllDay_explicit = params.get("isAllDay") is not None
+    has_date_only = any(
+        params.get(f) is not None and _DATE_ONLY_RE.match(str(params[f]))
+        for f in ("startDate", "dueDate")
+    )
     for field in ("startDate", "dueDate"):
         if params.get(field) is not None:
             params[field] = _normalize_date(params[field], field)
+    if has_date_only and not isAllDay_explicit:
+        params["isAllDay"] = True
     if params.get("priority") is not None:
         params["priority"] = _validate_priority(params["priority"])
     if params.get("isAllDay") is not None:

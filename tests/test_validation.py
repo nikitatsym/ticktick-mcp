@@ -220,6 +220,22 @@ class TestPrepareTask:
         result = _prepare_task({"title": "T", "brief": "B", "isAllDay": "false"})
         assert result["isAllDay"] is False
 
+    def test_date_only_auto_isAllDay(self):
+        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
+        assert result["isAllDay"] is True
+
+    def test_date_only_explicit_isAllDay_false(self):
+        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20", "isAllDay": False})
+        assert result["isAllDay"] is False
+
+    def test_datetime_with_tz_no_auto_isAllDay(self):
+        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00+0300"})
+        assert "isAllDay" not in result
+
+    def test_startDate_date_only_auto_isAllDay(self):
+        result = _prepare_task({"title": "T", "brief": "B", "startDate": "2026-03-20"})
+        assert result["isAllDay"] is True
+
     def test_does_not_mutate_input(self):
         params = {"title": "T", "brief": "B", "dueDate": "2026-03-20"}
         _prepare_task(params)
