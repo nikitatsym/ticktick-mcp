@@ -302,22 +302,24 @@ class TestRegistration:
         """Importing server.mcp should not crash — means registration passed."""
         from ticktick_mcp.server import mcp  # noqa: F401
 
-    def test_all_grouped_functions_have_docstrings(self):
+    def test_all_decorated_functions_have_desc(self):
+        import inspect
         from ticktick_mcp import tools as tools_module
-        from ticktick_mcp.server import _GROUPS
 
-        for fn_names in _GROUPS.values():
-            for fn_name in fn_names:
-                fn = getattr(tools_module, fn_name)
-                assert fn.__doc__, f"{fn_name} has no docstring"
+        for name, fn in inspect.getmembers(tools_module, inspect.isfunction):
+            if hasattr(fn, "_mcp_group"):
+                assert hasattr(fn, "_mcp_desc"), f"{name} has @_op but no desc"
+                assert fn._mcp_desc, f"{name} has empty desc"
 
-    def test_groups_reference_existing_functions(self):
+    def test_all_groups_have_docs(self):
+        import inspect
         from ticktick_mcp import tools as tools_module
-        from ticktick_mcp.server import _GROUPS
+        from ticktick_mcp.server import _GROUP_DOCS
 
-        for group_name, fn_names in _GROUPS.items():
-            for fn_name in fn_names:
-                assert hasattr(tools_module, fn_name), (
-                    f"_GROUPS[{group_name!r}] references {fn_name!r} "
-                    "which does not exist in tools.py"
-                )
+        groups = {
+            fn._mcp_group
+            for _, fn in inspect.getmembers(tools_module, inspect.isfunction)
+            if hasattr(fn, "_mcp_group") and fn._mcp_group != "root"
+        }
+        for group in groups:
+            assert group in _GROUP_DOCS, f"group {group!r} missing from _GROUP_DOCS"

@@ -11,24 +11,7 @@ from . import tools as _tools_module
 mcp = FastMCP("ticktick")
 
 
-# ── Grouping ─────────────────────────────────────────────────────────────────
-# The single source of truth for how operations are exposed as MCP tools.
-# Grouped operations → dispatched via meta-tools (ticktick_read, etc.).
-# Ungrouped operations → registered as individual MCP tools.
-
-_GROUPS: dict[str, list[str]] = {
-    "ticktick_read": [
-        "get_today", "get_inbox", "get_inbox_id", "list_projects",
-        "get_project", "get_project_with_data", "get_task",
-    ],
-    "ticktick_write": [
-        "create_task", "update_task", "complete_task",
-        "create_project", "update_project",
-    ],
-    "ticktick_delete": [
-        "delete_task", "delete_project",
-    ],
-}
+# ── Group meta-tool docs ─────────────────────────────────────────────────────
 
 _GROUP_DOCS: dict[str, str] = {
     "ticktick_read": (
@@ -113,8 +96,7 @@ def _build_help(group_name: str) -> str:
     for pascal_name, fn in ops.items():
         sig = inspect.signature(fn)
         params = ", ".join(sig.parameters.keys())
-        doc = fn.__doc__.split("\n")[0]
-        lines.append(f"  {pascal_name}({params}) — {doc}")
+        lines.append(f"  {pascal_name}({params}) — {fn._mcp_desc}")
     return f"{len(lines)} operations available:\n" + "\n".join(lines)
 
 
@@ -141,40 +123,33 @@ def _dispatch(operation: str, group_name: str, params_str: str) -> str:
 
 
 def _register_tools():
-    """Discover tool functions, validate, and register as MCP tools."""
-    # Collect all public functions defined in tools module
-    all_ops = {}
+    """Discover @_op-decorated functions, validate, and register as MCP tools."""
+    groups: dict[str, dict[str, object]] = {}  # {group: {snake_name: fn}}
+
     for name, fn in inspect.getmembers(_tools_module, inspect.isfunction):
-        if name.startswith("_"):
+        if not hasattr(fn, "_mcp_group"):
             continue
-        if fn.__module__ != _tools_module.__name__:
-            continue
-        if not fn.__doc__:
-            raise RuntimeError(f"Tool function {name!r} in tools.py has no docstring")
-        all_ops[name] = fn
-
-    # Validate groups reference existing functions
-    grouped = set()
-    for group_name, fn_names in _GROUPS.items():
-        if group_name not in _GROUP_DOCS:
-            raise RuntimeError(f"_GROUPS has {group_name!r} but _GROUP_DOCS is missing it")
-        for fn_name in fn_names:
-            if fn_name not in all_ops:
+        group = fn._mcp_group
+        if not hasattr(fn, "_mcp_desc"):
+            raise RuntimeError(f"@_op on {name!r} is missing desc=")
+        if group == "root":
+            fn.__doc__ = fn._mcp_desc
+            mcp.tool()(fn)
+        else:
+            if group not in _GROUP_DOCS:
                 raise RuntimeError(
-                    f"_GROUPS[{group_name!r}] references {fn_name!r} "
-                    "but no such public function exists in tools.py"
+                    f"Function {name!r} has group {group!r} "
+                    "but _GROUP_DOCS is missing it"
                 )
-            grouped.add(fn_name)
+            groups.setdefault(group, {})[name] = fn
 
-    # Build operation maps
-    for group_name, fn_names in _GROUPS.items():
-        ops = {_to_pascal(n): all_ops[n] for n in fn_names}
+    # Build operation maps and register meta-tools
+    for group_name, fns in groups.items():
+        ops = {_to_pascal(n): fn for n, fn in fns.items()}
         _group_ops[group_name] = ops
         for pascal_name in ops:
             _all_grouped[pascal_name] = group_name
 
-    # Register grouped operations as meta-tools
-    for group_name in _GROUPS:
         def _make_tool(gname):
             def tool_fn(operation: str, params: str = "{}") -> str:
                 if operation == "help":
@@ -186,11 +161,6 @@ def _register_tools():
             return tool_fn
 
         mcp.tool()(_make_tool(group_name))
-
-    # Register ungrouped functions as individual MCP tools
-    for name, fn in all_ops.items():
-        if name not in grouped:
-            mcp.tool()(fn)
 
 
 _register_tools()

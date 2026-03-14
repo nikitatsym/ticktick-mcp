@@ -1,14 +1,16 @@
 """Tests for grouped tool dispatch."""
 
+import inspect
 import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from ticktick_mcp import tools as _tools_module
 from ticktick_mcp.server import (
-    _GROUPS,
     _build_help,
     _dispatch,
+    _group_ops,
     _parse_bool,
     _to_pascal,
 )
@@ -17,20 +19,30 @@ from ticktick_mcp.server import (
 # ── Registry validation ─────────────────────────────────────────────────────
 
 
+def _count_by_group(group: str) -> int:
+    return sum(
+        1 for _, fn in inspect.getmembers(_tools_module, inspect.isfunction)
+        if getattr(fn, "_mcp_group", None) == group
+    )
+
+
 def test_read_count():
-    assert len(_GROUPS["ticktick_read"]) == 7
+    assert _count_by_group("ticktick_read") == 7
 
 
 def test_write_count():
-    assert len(_GROUPS["ticktick_write"]) == 5
+    assert _count_by_group("ticktick_write") == 5
 
 
 def test_delete_count():
-    assert len(_GROUPS["ticktick_delete"]) == 2
+    assert _count_by_group("ticktick_delete") == 2
 
 
 def test_total_operations():
-    total = sum(len(fns) for fns in _GROUPS.values())
+    total = sum(
+        1 for _, fn in inspect.getmembers(_tools_module, inspect.isfunction)
+        if hasattr(fn, "_mcp_group")
+    )
     assert total == 14
 
 
