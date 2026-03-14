@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ticktick_mcp import tools as _tools_module
+from ticktick_mcp.tools import ticktick_read, ticktick_write, ticktick_delete
 from ticktick_mcp.server import (
     _build_help,
     _dispatch,
@@ -19,23 +20,23 @@ from ticktick_mcp.server import (
 # ── Registry validation ─────────────────────────────────────────────────────
 
 
-def _count_by_group(group: str) -> int:
+def _count_by_group(group) -> int:
     return sum(
         1 for _, fn in inspect.getmembers(_tools_module, inspect.isfunction)
-        if getattr(fn, "_mcp_group", None) == group
+        if getattr(fn, "_mcp_group", None) is group
     )
 
 
 def test_read_count():
-    assert _count_by_group("ticktick_read") == 7
+    assert _count_by_group(ticktick_read) == 7
 
 
 def test_write_count():
-    assert _count_by_group("ticktick_write") == 5
+    assert _count_by_group(ticktick_write) == 5
 
 
 def test_delete_count():
-    assert _count_by_group("ticktick_delete") == 2
+    assert _count_by_group(ticktick_delete) == 2
 
 
 def test_total_operations():

@@ -302,24 +302,23 @@ class TestRegistration:
         """Importing server.mcp should not crash — means registration passed."""
         from ticktick_mcp.server import mcp  # noqa: F401
 
-    def test_all_decorated_functions_have_desc(self):
+    def test_all_decorated_functions_have_docstrings(self):
         import inspect
         from ticktick_mcp import tools as tools_module
 
         for name, fn in inspect.getmembers(tools_module, inspect.isfunction):
             if hasattr(fn, "_mcp_group"):
-                assert hasattr(fn, "_mcp_desc"), f"{name} has @_op but no desc"
-                assert fn._mcp_desc, f"{name} has empty desc"
+                assert fn.__doc__, f"{name} has @_op but no docstring"
 
     def test_all_groups_have_docs(self):
         import inspect
         from ticktick_mcp import tools as tools_module
-        from ticktick_mcp.server import _GROUP_DOCS
+        from ticktick_mcp.registry import ROOT
 
         groups = {
             fn._mcp_group
             for _, fn in inspect.getmembers(tools_module, inspect.isfunction)
-            if hasattr(fn, "_mcp_group") and fn._mcp_group != "root"
+            if hasattr(fn, "_mcp_group") and fn._mcp_group is not ROOT
         }
         for group in groups:
-            assert group in _GROUP_DOCS, f"group {group!r} missing from _GROUP_DOCS"
+            assert group.doc, f"group {group.name!r} has no doc"

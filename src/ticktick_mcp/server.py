@@ -7,35 +7,9 @@ import typing
 from mcp.server.fastmcp import FastMCP
 
 from . import tools as _tools_module
+from .registry import ROOT
 
 mcp = FastMCP("ticktick")
-
-
-# ── Group meta-tool docs ─────────────────────────────────────────────────────
-
-_GROUP_DOCS: dict[str, str] = {
-    "ticktick_read": (
-        "Query TickTick data (safe, read-only).\n\n"
-        "Call with operation=\"help\" to list all available read operations.\n"
-        "Otherwise pass the operation name and a JSON object with parameters.\n\n"
-        "Example: ticktick_read(operation=\"GetTask\", "
-        "params='{\"projectId\": \"abc\", \"taskId\": \"xyz\"}')"
-    ),
-    "ticktick_write": (
-        "Create, update, or complete TickTick resources (non-destructive).\n\n"
-        "Call with operation=\"help\" to list all available write operations.\n"
-        "Otherwise pass the operation name and a JSON object with parameters.\n\n"
-        "Example: ticktick_write(operation=\"CreateTask\", "
-        "params='{\"title\": \"Buy milk\"}')"
-    ),
-    "ticktick_delete": (
-        "Delete TickTick resources (destructive, irreversible).\n\n"
-        "Call with operation=\"help\" to list all available delete operations.\n"
-        "Otherwise pass the operation name and a JSON object with parameters.\n\n"
-        "Example: ticktick_delete(operation=\"DeleteTask\", "
-        "params='{\"projectId\": \"abc\", \"taskId\": \"xyz\"}')"
-    ),
-}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -96,7 +70,8 @@ def _build_help(group_name: str) -> str:
     for pascal_name, fn in ops.items():
         sig = inspect.signature(fn)
         params = ", ".join(sig.parameters.keys())
-        lines.append(f"  {pascal_name}({params}) — {fn._mcp_desc}")
+        doc = fn.__doc__.split("\n")[0]
+        lines.append(f"  {pascal_name}({params}) — {doc}")
     return f"{len(lines)} operations available:\n" + "\n".join(lines)
 
 
@@ -124,43 +99,37 @@ def _dispatch(operation: str, group_name: str, params_str: str) -> str:
 
 def _register_tools():
     """Discover @_op-decorated functions, validate, and register as MCP tools."""
-    groups: dict[str, dict[str, object]] = {}  # {group: {snake_name: fn}}
+    groups: dict[str, tuple] = {}  # {group_name: (Group, {snake_name: fn})}
 
     for name, fn in inspect.getmembers(_tools_module, inspect.isfunction):
         if not hasattr(fn, "_mcp_group"):
             continue
         group = fn._mcp_group
-        if not hasattr(fn, "_mcp_desc"):
-            raise RuntimeError(f"@_op on {name!r} is missing desc=")
-        if group == "root":
-            fn.__doc__ = fn._mcp_desc
+        if group is ROOT:
             mcp.tool()(fn)
         else:
-            if group not in _GROUP_DOCS:
-                raise RuntimeError(
-                    f"Function {name!r} has group {group!r} "
-                    "but _GROUP_DOCS is missing it"
-                )
-            groups.setdefault(group, {})[name] = fn
+            if group.name not in groups:
+                groups[group.name] = (group, {})
+            groups[group.name][1][name] = fn
 
     # Build operation maps and register meta-tools
-    for group_name, fns in groups.items():
+    for group_name, (group, fns) in groups.items():
         ops = {_to_pascal(n): fn for n, fn in fns.items()}
         _group_ops[group_name] = ops
         for pascal_name in ops:
             _all_grouped[pascal_name] = group_name
 
-        def _make_tool(gname):
+        def _make_tool(gname, gdoc):
             def tool_fn(operation: str, params: str = "{}") -> str:
                 if operation == "help":
                     return _build_help(gname)
                 return _dispatch(operation, gname, params)
             tool_fn.__name__ = gname
             tool_fn.__qualname__ = gname
-            tool_fn.__doc__ = _GROUP_DOCS[gname]
+            tool_fn.__doc__ = gdoc
             return tool_fn
 
-        mcp.tool()(_make_tool(group_name))
+        mcp.tool()(_make_tool(group_name, group.doc))
 
 
 _register_tools()
