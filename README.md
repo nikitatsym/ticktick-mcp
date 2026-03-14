@@ -27,9 +27,7 @@ For Claude Code global config on macOS: `~/.claude.json` → `"mcpServers"`.
       "env": {
         "TICKTICK_CLIENT_ID": "YOUR_CLIENT_ID",
         "TICKTICK_CLIENT_SECRET": "YOUR_CLIENT_SECRET",
-        "TICKTICK_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN",
-        "TICKTICK_DESC_DEFAULT": "false",
-        "TICKTICK_DESC_COMPACT_DEFAULT": "true"
+        "TICKTICK_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN"
       }
     }
   }
@@ -40,11 +38,8 @@ For Claude Code global config on macOS: `~/.claude.json` → `"mcpServers"`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TICKTICK_DESC_DEFAULT` | `false` | Include task descriptions in list responses |
-| `TICKTICK_DESC_COMPACT_DEFAULT` | `true` | When descriptions are included, return only `<brief>...</brief>` content |
-| `TICKTICK_SLIM_DEFAULT` | `true` | Strip verbose fields from task listings |
-| `TICKTICK_REQUIRE_BRIEF` | `true` | Require `<brief>summary</brief>` tag in task content on create/edit |
-| `TICKTICK_BRIEF_MAX_LENGTH` | `200` | Max character length for brief summary |
+| `MCP_TICKTICK_BRIEF_MAX` | `100` | Max brief length. `>0` = require `<brief>` tag + cap length. `0` = off |
+
 ## Tools
 
 The server exposes 3 meta-tools with operation-based dispatch. Use `operation="help"` to list available operations.

@@ -6,11 +6,7 @@ from typing import Optional
 
 _BRIEF_RE = re.compile(r"<brief>(.*?)</brief>", re.DOTALL)
 
-_DEFAULT_DESC = os.environ.get("TICKTICK_DESC_DEFAULT", "false").lower() in ("1", "true", "yes")
-_DEFAULT_DESC_COMPACT = os.environ.get("TICKTICK_DESC_COMPACT_DEFAULT", "true").lower() in ("1", "true", "yes")
-_DEFAULT_SLIM = os.environ.get("TICKTICK_SLIM_DEFAULT", "true").lower() in ("1", "true", "yes")
-_REQUIRE_BRIEF = os.environ.get("TICKTICK_REQUIRE_BRIEF", "true").lower() not in ("0", "false", "no")
-_BRIEF_MAX_LENGTH = int(os.environ.get("TICKTICK_BRIEF_MAX_LENGTH", "200"))
+_BRIEF_MAX = int(os.environ.get("MCP_TICKTICK_BRIEF_MAX", "100"))
 
 _SLIM_FIELDS = {"id", "projectId", "title", "status", "priority", "dueDate", "tags", "parentId", "childIds"}
 
@@ -36,39 +32,9 @@ def _extract_brief(task: dict) -> Optional[str]:
     return None
 
 
-def _slim_task(task: dict, desc: bool, descCompact: bool) -> dict:
+def _slim_task(task: dict) -> dict:
     """Strip task to essential fields for list context."""
-    out = {k: v for k, v in task.items() if k in _SLIM_FIELDS}
-    if desc:
-        if descCompact:
-            brief = _extract_brief(task)
-            if brief:
-                out["brief"] = brief
-        else:
-            for f in ("content", "desc"):
-                if f in task:
-                    out[f] = task[f]
-    return out
-
-
-def _process_tasks(tasks: list, desc: bool, descCompact: bool) -> list:
-    """Filter description fields from task objects based on desc/descCompact flags."""
-    if desc and not descCompact:
-        return tasks
-    result = []
-    for task in tasks:
-        task = dict(task)
-        if descCompact:
-            brief = _extract_brief(task)
-            task.pop("content", None)
-            task.pop("desc", None)
-            if brief:
-                task["brief"] = brief
-        elif not desc:
-            task.pop("content", None)
-            task.pop("desc", None)
-        result.append(task)
-    return result
+    return {k: v for k, v in task.items() if k in _SLIM_FIELDS}
 
 
 def _inject_brief(brief: str, content: Optional[str]) -> str:
@@ -83,7 +49,7 @@ def _inject_brief(brief: str, content: Optional[str]) -> str:
 
 def _validate_brief(content: Optional[str]) -> None:
     """Raise ValueError if brief requirement is on and content lacks a valid <brief> tag."""
-    if not _REQUIRE_BRIEF:
+    if _BRIEF_MAX == 0:
         return
     if not content or not _BRIEF_RE.search(content):
         raise ValueError(
@@ -92,9 +58,9 @@ def _validate_brief(content: Optional[str]) -> None:
         )
     m = _BRIEF_RE.search(content)
     brief = m.group(1).strip() if m else ""
-    if len(brief) > _BRIEF_MAX_LENGTH:
+    if len(brief) > _BRIEF_MAX:
         raise ValueError(
-            f"<brief> too long: {len(brief)} chars, max {_BRIEF_MAX_LENGTH}. "
+            f"<brief> too long: {len(brief)} chars, max {_BRIEF_MAX}. "
             "Keep it to a concise one-liner."
         )
 
