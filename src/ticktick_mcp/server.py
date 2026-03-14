@@ -401,10 +401,3 @@ def delete_task(projectId: str, taskId: str) -> str:
     """Delete a task from TickTick."""
     _get_client().delete_task(projectId, taskId)
     return f"Task {taskId} deleted."
-
-
-@mcp.tool()
-def batch_create_tasks(tasks: list[dict]) -> str:
-    """Create multiple tasks at once. Each task object supports the same fields as create_task (title is required). Content must include <brief>summary</brief> tag. dueDate/startDate: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS±HHMM. priority: 0=none, 1=low, 3=medium, 5=high."""
-    prepared = [_prepare_task(t) for t in tasks]
-    return json.dumps(_get_client().batch_create_tasks(prepared), indent=2, ensure_ascii=False)

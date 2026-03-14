@@ -114,9 +114,6 @@ class TickTickClient:
     def delete_task(self, project_id, task_id):
         return self._request("DELETE", f"/project/{project_id}/task/{task_id}")
 
-    def batch_create_tasks(self, tasks):
-        return self._request("POST", "/batch/task", {"add": tasks})
-
     # ── Today ─────────────────────────────────────────────────
 
     @staticmethod
