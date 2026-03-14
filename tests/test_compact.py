@@ -211,7 +211,7 @@ def test_get_task(mock_client):
 
 
 def test_create_task(mock_client):
-    mock_client.create_task.return_value = {"id": "new1", "title": "Buy milk"}
+    mock_client.create_task.return_value = {"id": "new1", "title": "Buy milk", "content": "<brief>Buy milk</brief>"}
     result = json.loads(_dispatch("CreateTask", "write", json.dumps({
         "title": "Buy milk",
         "brief": "Buy milk",
@@ -223,13 +223,13 @@ def test_create_task(mock_client):
 
 def test_create_task_no_brief_validates(mock_client):
     """Without brief param, content must have brief tag (when REQUIRE_BRIEF is on)."""
-    with patch("ticktick_mcp.server_compact._validate_brief", side_effect=ValueError("must contain")):
+    with patch("ticktick_mcp.server._validate_brief", side_effect=ValueError("must contain")):
         with pytest.raises(ValueError, match="must contain"):
             _dispatch("CreateTask", "write", json.dumps({"title": "T", "content": "no tag"}))
 
 
 def test_update_task(mock_client):
-    mock_client.update_task.return_value = {"id": "t1", "title": "Updated"}
+    mock_client.update_task.return_value = {"id": "t1", "title": "Updated", "projectId": "p1"}
     result = json.loads(_dispatch("UpdateTask", "write", json.dumps({
         "taskId": "t1", "projectId": "p1", "title": "Updated",
     })))
@@ -239,7 +239,7 @@ def test_update_task(mock_client):
 
 def test_update_task_with_brief_fetches_existing(mock_client):
     mock_client.get_task.return_value = {"id": "t1", "content": "old stuff"}
-    mock_client.update_task.return_value = {"id": "t1", "content": "<brief>New</brief>\nold stuff"}
+    mock_client.update_task.return_value = {"id": "t1", "projectId": "p1", "content": "<brief>New</brief>\nold stuff"}
     result = json.loads(_dispatch("UpdateTask", "write", json.dumps({
         "taskId": "t1", "projectId": "p1", "brief": "New",
     })))
@@ -255,7 +255,7 @@ def test_complete_task(mock_client):
 
 
 def test_create_project(mock_client):
-    mock_client.create_project.return_value = {"id": "p1", "name": "New"}
+    mock_client.create_project.return_value = {"id": "p1", "name": "New", "viewMode": "kanban"}
     result = json.loads(_dispatch("CreateProject", "write", json.dumps({"name": "New", "viewMode": "kanban"})))
     assert result["name"] == "New"
     call_args = mock_client.create_project.call_args[0][0]

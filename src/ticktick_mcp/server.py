@@ -106,6 +106,124 @@ def _validate_brief(content: Optional[str]) -> None:
         )
 
 
+# ── Validation & preparation ─────────────────────────────────────────────────
+
+_DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_DATETIME_TZ_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}:?\d{2}|Z)$")
+_DATETIME_NO_TZ_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$")
+
+_VALID_PRIORITIES = {0, 1, 3, 5}
+_SKIP_VERIFY = {"content", "desc"}
+_TASK_API_FIELDS = ("title", "projectId", "content", "desc", "startDate", "dueDate",
+                    "isAllDay", "priority", "tags", "timeZone", "reminders", "repeatFlag", "items")
+_PROJECT_API_FIELDS = ("name", "color", "viewMode", "kind")
+
+
+def _normalize_date(val: str, field: str) -> str:
+    """Normalize date string. YYYY-MM-DD → midnight UTC, with tz → passthrough, no tz → error."""
+    if _DATE_ONLY_RE.match(val):
+        return f"{val}T00:00:00.000+0000"
+    if _DATETIME_TZ_RE.match(val):
+        return val
+    if _DATETIME_NO_TZ_RE.match(val):
+        raise ValueError(
+            f"{field} has datetime without timezone: '{val}'. "
+            "Use YYYY-MM-DD for all-day or YYYY-MM-DDTHH:MM:SS±HHMM for specific time."
+        )
+    raise ValueError(
+        f"{field} has invalid format: '{val}'. "
+        "Expected YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS±HHMM."
+    )
+
+
+def _validate_priority(val) -> int:
+    """Validate and coerce priority. Allowed: 0 (none), 1 (low), 3 (medium), 5 (high)."""
+    try:
+        val = int(val)
+    except (TypeError, ValueError):
+        raise ValueError(f"priority must be 0 (none), 1 (low), 3 (medium), or 5 (high). Got: {val!r}")
+    if val not in _VALID_PRIORITIES:
+        raise ValueError(f"priority must be 0 (none), 1 (low), 3 (medium), or 5 (high). Got: {val}")
+    return val
+
+
+def _validate_enum(val, field: str, allowed: set) -> str:
+    """Validate value is in allowed set."""
+    val = str(val)
+    if val not in allowed:
+        raise ValueError(f"{field} must be one of {sorted(allowed)}. Got: {val!r}")
+    return val
+
+
+def _require(params: dict, *keys) -> None:
+    """Check required keys are present and not None."""
+    missing = [k for k in keys if params.get(k) is None]
+    if missing:
+        got = [k for k, v in params.items() if v is not None]
+        raise ValueError(f"Required: {', '.join(repr(k) for k in missing)}. Got: {got}")
+
+
+def _prepare_task(params: dict, is_update: bool = False) -> dict:
+    """Build a validated, normalized task dict for the API."""
+    params = dict(params)
+    brief = params.pop("brief", None)
+    if brief:
+        params["content"] = _inject_brief(brief, params.get("content"))
+    content = params.get("content")
+    if is_update:
+        if content is not None:
+            _validate_brief(content)
+    else:
+        _validate_brief(content)
+    for field in ("startDate", "dueDate"):
+        if params.get(field) is not None:
+            params[field] = _normalize_date(params[field], field)
+    if params.get("priority") is not None:
+        params["priority"] = _validate_priority(params["priority"])
+    if params.get("isAllDay") is not None:
+        v = params["isAllDay"]
+        params["isAllDay"] = v.lower() in ("true", "1", "yes") if isinstance(v, str) else bool(v)
+    if is_update:
+        _require(params, "projectId", "taskId")
+    else:
+        _require(params, "title")
+    task = {}
+    for key in _TASK_API_FIELDS:
+        if params.get(key) is not None:
+            task[key] = params[key]
+    return task
+
+
+def _prepare_project(params: dict, is_update: bool = False) -> dict:
+    """Build a validated project dict for the API."""
+    params = dict(params)
+    if params.get("viewMode") is not None:
+        _validate_enum(params["viewMode"], "viewMode", {"list", "kanban", "timeline"})
+    if params.get("kind") is not None:
+        _validate_enum(params["kind"], "kind", {"TASK", "NOTE"})
+    if not is_update:
+        _require(params, "name")
+    proj = {}
+    for key in _PROJECT_API_FIELDS:
+        if params.get(key) is not None:
+            proj[key] = params[key]
+    return proj
+
+
+def _verify_response(sent: dict, received) -> None:
+    """Check that all keys we sent are present in the API response."""
+    if not isinstance(received, dict):
+        return
+    for key in sent:
+        if key in _SKIP_VERIFY:
+            continue
+        if key not in received:
+            raise ValueError(
+                f"API silently dropped '{key}'. The resource was created/updated "
+                "but the field was ignored. Check the value format."
+            )
+
+
 # ── Today ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
@@ -175,14 +293,10 @@ def create_project(
     kind: Optional[str] = None,
 ) -> str:
     """Create a new TickTick project (task list). viewMode: list, kanban, or timeline. kind: TASK or NOTE."""
-    params = {"name": name}
-    if color is not None:
-        params["color"] = color
-    if viewMode is not None:
-        params["viewMode"] = viewMode
-    if kind is not None:
-        params["kind"] = kind
-    return json.dumps(_get_client().create_project(params), indent=2, ensure_ascii=False)
+    proj = _prepare_project(locals())
+    result = _get_client().create_project(proj)
+    _verify_response(proj, result)
+    return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
@@ -193,17 +307,11 @@ def update_project(
     viewMode: Optional[str] = None,
     kind: Optional[str] = None,
 ) -> str:
-    """Update an existing TickTick project."""
-    updates = {}
-    if name is not None:
-        updates["name"] = name
-    if color is not None:
-        updates["color"] = color
-    if viewMode is not None:
-        updates["viewMode"] = viewMode
-    if kind is not None:
-        updates["kind"] = kind
-    return json.dumps(_get_client().update_project(projectId, updates), indent=2, ensure_ascii=False)
+    """Update an existing TickTick project. viewMode: list, kanban, or timeline. kind: TASK or NOTE."""
+    proj = _prepare_project(locals(), is_update=True)
+    result = _get_client().update_project(projectId, proj)
+    _verify_response(proj, result)
+    return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
@@ -238,17 +346,11 @@ def create_task(
     repeatFlag: Optional[str] = None,
     items: Optional[list[dict]] = None,
 ) -> str:
-    """Create a new task in TickTick. If projectId is omitted, the task goes to Inbox. Content must include <brief>summary</brief> tag. brief: short summary stored as <brief> tag inside content (shown in compact list views). priority: 0=none, 1=low, 3=medium, 5=high. startDate/dueDate in ISO 8601 format. reminders in iCal trigger format. repeatFlag in iCal RRULE format. items are subtask/checklist objects with title (required), status (0=normal, 1=completed), startDate, isAllDay, sortOrder, timeZone."""
-    if brief:
-        content = _inject_brief(brief, content)
-    _validate_brief(content)
-    task: dict = {"title": title}
-    for key in ("projectId", "content", "desc", "startDate", "dueDate", "isAllDay",
-                "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"):
-        val = locals()[key]
-        if val is not None:
-            task[key] = val
-    return json.dumps(_get_client().create_task(task), indent=2, ensure_ascii=False)
+    """Create a new task in TickTick. If projectId is omitted, the task goes to Inbox. Content must include <brief>summary</brief> tag. brief: short summary stored as <brief> tag inside content (shown in compact list views). priority: 0=none, 1=low, 3=medium, 5=high. dueDate/startDate: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS±HHMM. reminders: list of iCal triggers, e.g. ["TRIGGER:-PT15M"]. repeatFlag: iCal RRULE, e.g. "RRULE:FREQ=WEEKLY". items are subtask/checklist objects with title (required), status (0=normal, 1=completed), startDate, isAllDay, sortOrder, timeZone."""
+    task = _prepare_task(locals())
+    result = _get_client().create_task(task)
+    _verify_response(task, result)
+    return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
@@ -269,21 +371,15 @@ def update_task(
     repeatFlag: Optional[str] = None,
     items: Optional[list[dict]] = None,
 ) -> str:
-    """Update an existing task. Provide only the fields you want to change. Content must include <brief>summary</brief> tag. brief: update the short summary stored as <brief> tag inside content."""
-    if brief:
-        if content is None:
-            existing = _get_client().get_task(projectId, taskId)
-            content = existing.get("content") or ""
-        content = _inject_brief(brief, content)
-    if content is not None:
-        _validate_brief(content)
-    updates: dict = {"projectId": projectId}
-    for key in ("title", "content", "desc", "startDate", "dueDate", "isAllDay",
-                "priority", "tags", "timeZone", "reminders", "repeatFlag", "items"):
-        val = locals()[key]
-        if val is not None:
-            updates[key] = val
-    return json.dumps(_get_client().update_task(taskId, updates), indent=2, ensure_ascii=False)
+    """Update an existing task. Provide only the fields you want to change. Content must include <brief>summary</brief> tag. brief: update the short summary stored as <brief> tag inside content. priority: 0=none, 1=low, 3=medium, 5=high. dueDate/startDate: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS±HHMM."""
+    params = dict(locals())
+    if params.get("brief") and params.get("content") is None:
+        existing = _get_client().get_task(projectId, taskId)
+        params["content"] = existing.get("content") or ""
+    task = _prepare_task(params, is_update=True)
+    result = _get_client().update_task(taskId, task)
+    _verify_response(task, result)
+    return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
@@ -302,11 +398,6 @@ def delete_task(projectId: str, taskId: str) -> str:
 
 @mcp.tool()
 def batch_create_tasks(tasks: list[dict]) -> str:
-    """Create multiple tasks at once. Each task object supports the same fields as create_task (title is required). Content must include <brief>summary</brief> tag."""
-    for i, task in enumerate(tasks):
-        if "brief" in task:
-            task = dict(task)
-            task["content"] = _inject_brief(task.pop("brief"), task.get("content"))
-            tasks[i] = task
-        _validate_brief(task.get("content"))
-    return json.dumps(_get_client().batch_create_tasks(tasks), indent=2, ensure_ascii=False)
+    """Create multiple tasks at once. Each task object supports the same fields as create_task (title is required). Content must include <brief>summary</brief> tag. dueDate/startDate: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS±HHMM. priority: 0=none, 1=low, 3=medium, 5=high."""
+    prepared = [_prepare_task(t) for t in tasks]
+    return json.dumps(_get_client().batch_create_tasks(prepared), indent=2, ensure_ascii=False)
