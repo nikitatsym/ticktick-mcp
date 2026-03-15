@@ -60,9 +60,14 @@ ticktick_delete = Group(
 
 @_op(ROOT)
 def ticktick_version():
-    """Get the TickTick MCP server version."""
+    """Get the TickTick MCP server version and service status."""
     from importlib.metadata import version
-    return version("ticktick-mcp")
+    try:
+        _get_client().list_projects()
+        service = {"status": "ok"}
+    except Exception:
+        service = {"status": "error"}
+    return {"mcp": version("ticktick-mcp"), "service": service}
 
 
 # ── Read operations ──────────────────────────────────────────────────────────
