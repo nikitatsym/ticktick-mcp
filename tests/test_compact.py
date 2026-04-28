@@ -98,6 +98,16 @@ def test_help_includes_params():
     assert "projectId" in text
 
 
+def test_help_surfaces_docstring_body():
+    """Non-type constraints in the docstring body must appear in help output."""
+    text = _build_help("ticktick_write")
+    # CreateTask docstring body documents <brief> requirement, date format, timeZone rule
+    assert "<brief>" in text
+    assert "YYYY-MM-DD" in text
+    assert "timeZone" in text
+    assert "iCal" in text
+
+
 # ── Scope mismatch ───────────────────────────────────────────────────────────
 
 
