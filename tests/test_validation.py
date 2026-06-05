@@ -1,14 +1,12 @@
-"""Tests for input validation and response verification."""
+"""Tests for input validation, normalization, and response verification."""
 
 import pytest
-
 from zoneinfo import ZoneInfo
 
 from ticktick_mcp.prepare import (
     _normalize_date,
     _prepare_project,
     _prepare_task,
-    _require,
     _validate_enum,
     _validate_priority,
     _validate_timezone,
@@ -16,7 +14,7 @@ from ticktick_mcp.prepare import (
 )
 
 
-# ── _normalize_date ──────────────────────────────────────────────────────────
+# ── _validate_timezone ───────────────────────────────────────────────────────
 
 
 class TestValidateTimezone:
@@ -36,6 +34,9 @@ class TestValidateTimezone:
             _validate_timezone("")
 
 
+# ── _normalize_date ──────────────────────────────────────────────────────────
+
+
 class TestNormalizeDate:
     _tz_berlin = ZoneInfo("Europe/Berlin")
     _tz_tbilisi = ZoneInfo("Asia/Tbilisi")
@@ -44,12 +45,10 @@ class TestNormalizeDate:
         assert _normalize_date("2026-03-20", "dueDate", None) == "2026-03-20T00:00:00.000+0000"
 
     def test_date_only_with_tz(self):
-        # Date-only always → midnight UTC regardless of tz
         assert _normalize_date("2026-03-20", "dueDate", self._tz_berlin) == "2026-03-20T00:00:00.000+0000"
 
     def test_naive_datetime_with_tz(self):
         result = _normalize_date("2026-03-15T19:00:00", "dueDate", self._tz_berlin)
-        # March 15 Berlin is CET (+0100)
         assert result == "2026-03-15T19:00:00.000+0100"
 
     def test_naive_datetime_tbilisi(self):
@@ -73,7 +72,6 @@ class TestNormalizeDate:
             _normalize_date("2026-03-20T10:00:00Z", "dueDate", None)
 
     def test_dst_transition(self):
-        # March 29 2026 Berlin switches to CEST (+0200)
         result = _normalize_date("2026-03-30T10:00:00", "dueDate", self._tz_berlin)
         assert result == "2026-03-30T10:00:00.000+0200"
 
@@ -136,29 +134,6 @@ class TestValidateEnum:
             _validate_enum("HABIT", "kind", {"TASK", "NOTE"})
 
 
-# ── _require ─────────────────────────────────────────────────────────────────
-
-
-class TestRequire:
-    def test_all_present(self):
-        _require({"title": "T", "projectId": "p"}, "title")
-
-    def test_multiple_present(self):
-        _require({"projectId": "p", "taskId": "t"}, "projectId", "taskId")
-
-    def test_missing_raises(self):
-        with pytest.raises(ValueError, match="'title'"):
-            _require({"projectId": "p"}, "title")
-
-    def test_none_value_raises(self):
-        with pytest.raises(ValueError, match="'title'"):
-            _require({"title": None}, "title")
-
-    def test_error_shows_got(self):
-        with pytest.raises(ValueError, match="projectId"):
-            _require({"projectId": "p"}, "title")
-
-
 # ── _verify_response ────────────────────────────────────────────────────────
 
 
@@ -197,78 +172,94 @@ class TestVerifyResponse:
 
 class TestPrepareTask:
     def test_create_basic(self):
-        result = _prepare_task({"title": "Buy milk", "brief": "Buy milk"})
-        assert result["title"] == "Buy milk"
-        assert "<brief>Buy milk</brief>" in result["content"]
-        assert "brief" not in result
+        task, tz = _prepare_task({"title": "Buy milk", "brief": "Buy milk"})
+        assert task["title"] == "Buy milk"
+        assert "<brief>Buy milk</brief>" in task["content"]
+        assert "brief" not in task
+        assert tz is None
 
     def test_create_normalizes_date_only(self):
-        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
-        assert result["dueDate"] == "2026-03-20T00:00:00.000+0000"
+        task, _ = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
+        assert task["dueDate"] == "2026-03-20T00:00:00.000+0000"
 
     def test_create_normalizes_datetime_with_tz(self):
-        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Tbilisi"})
-        assert result["dueDate"] == "2026-03-20T10:00:00.000+0400"
-        assert result["timeZone"] == "Asia/Tbilisi"
+        task, tz = _prepare_task({
+            "title": "T", "brief": "B",
+            "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Tbilisi",
+        })
+        assert task["dueDate"] == "2026-03-20T10:00:00.000+0400"
+        assert task["timeZone"] == "Asia/Tbilisi"
+        assert tz == {"used": "Asia/Tbilisi", "source": "param"}
 
     def test_create_rejects_manual_offset(self):
         with pytest.raises(ValueError, match="manual UTC offsets"):
-            _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00+0300"})
+            _prepare_task({
+                "title": "T", "brief": "B",
+                "dueDate": "2026-03-20T10:00:00+0300",
+            })
 
     def test_create_validates_priority(self):
         with pytest.raises(ValueError, match="priority must be"):
             _prepare_task({"title": "T", "brief": "B", "priority": 2})
 
     def test_create_coerces_priority_str(self):
-        result = _prepare_task({"title": "T", "brief": "B", "priority": "3"})
-        assert result["priority"] == 3
+        task, _ = _prepare_task({"title": "T", "brief": "B", "priority": "3"})
+        assert task["priority"] == 3
 
     def test_create_requires_title(self):
-        with pytest.raises(ValueError, match="'title'"):
+        with pytest.raises(ValueError, match="title"):
             _prepare_task({"brief": "B"})
 
-    def test_update_requires_projectId_taskId(self):
-        with pytest.raises(ValueError, match="'projectId'"):
-            _prepare_task({"title": "T"}, is_update=True)
-
     def test_update_basic(self):
-        result = _prepare_task({"projectId": "p1", "taskId": "t1", "title": "New"}, is_update=True)
-        assert result["projectId"] == "p1"
-        assert result["title"] == "New"
-        assert "taskId" not in result
+        task, _ = _prepare_task(
+            {"projectId": "p1", "title": "New"},
+            is_update=True,
+        )
+        assert task["projectId"] == "p1"
+        assert task["title"] == "New"
+        assert "taskId" not in task
 
     def test_skips_none_values(self):
-        result = _prepare_task({"title": "T", "brief": "B", "dueDate": None, "priority": None})
-        assert "dueDate" not in result
-        assert "priority" not in result
+        task, _ = _prepare_task({
+            "title": "T", "brief": "B",
+            "dueDate": None, "priority": None,
+        })
+        assert "dueDate" not in task
+        assert "priority" not in task
 
     def test_coerces_isAllDay_bool(self):
-        result = _prepare_task({"title": "T", "brief": "B", "isAllDay": True})
-        assert result["isAllDay"] is True
+        task, _ = _prepare_task({"title": "T", "brief": "B", "isAllDay": True})
+        assert task["isAllDay"] is True
 
     def test_coerces_isAllDay_str(self):
-        result = _prepare_task({"title": "T", "brief": "B", "isAllDay": "true"})
-        assert result["isAllDay"] is True
+        task, _ = _prepare_task({"title": "T", "brief": "B", "isAllDay": "true"})
+        assert task["isAllDay"] is True
 
     def test_coerces_isAllDay_str_false(self):
-        result = _prepare_task({"title": "T", "brief": "B", "isAllDay": "false"})
-        assert result["isAllDay"] is False
+        task, _ = _prepare_task({"title": "T", "brief": "B", "isAllDay": "false"})
+        assert task["isAllDay"] is False
 
     def test_date_only_auto_isAllDay(self):
-        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
-        assert result["isAllDay"] is True
+        task, _ = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
+        assert task["isAllDay"] is True
 
     def test_date_only_explicit_isAllDay_false(self):
-        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20", "isAllDay": False})
-        assert result["isAllDay"] is False
+        task, _ = _prepare_task({
+            "title": "T", "brief": "B",
+            "dueDate": "2026-03-20", "isAllDay": False,
+        })
+        assert task["isAllDay"] is False
 
     def test_datetime_no_auto_isAllDay(self):
-        result = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Tbilisi"})
-        assert "isAllDay" not in result
+        task, _ = _prepare_task({
+            "title": "T", "brief": "B",
+            "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Tbilisi",
+        })
+        assert "isAllDay" not in task
 
     def test_startDate_date_only_auto_isAllDay(self):
-        result = _prepare_task({"title": "T", "brief": "B", "startDate": "2026-03-20"})
-        assert result["isAllDay"] is True
+        task, _ = _prepare_task({"title": "T", "brief": "B", "startDate": "2026-03-20"})
+        assert task["isAllDay"] is True
 
     def test_does_not_mutate_input(self):
         params = {"title": "T", "brief": "B", "dueDate": "2026-03-20"}
@@ -278,12 +269,18 @@ class TestPrepareTask:
 
     def test_datetime_no_tz_rejected(self):
         with pytest.raises(ValueError, match="no timeZone"):
-            _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20T10:00:00"})
+            _prepare_task({
+                "title": "T", "brief": "B",
+                "dueDate": "2026-03-20T10:00:00",
+            })
 
-    def test_update_skips_brief_validation_when_no_content(self):
-        """Update without content change should not require brief."""
-        result = _prepare_task({"projectId": "p1", "taskId": "t1", "title": "New"}, is_update=True)
-        assert result["title"] == "New"
+    def test_update_no_brief_no_content_skips_validation(self):
+        """Update with neither brief nor content should not trigger brief validation."""
+        task, _ = _prepare_task(
+            {"projectId": "p1", "title": "New"},
+            is_update=True,
+        )
+        assert task["title"] == "New"
 
 
 # ── _prepare_project ─────────────────────────────────────────────────────────
@@ -299,7 +296,7 @@ class TestPrepareProject:
         assert result == {"name": "Work", "viewMode": "kanban"}
 
     def test_create_requires_name(self):
-        with pytest.raises(ValueError, match="'name'"):
+        with pytest.raises(ValueError, match="name"):
             _prepare_project({"viewMode": "kanban"})
 
     def test_invalid_viewMode(self):
@@ -333,7 +330,6 @@ class TestPrepareProject:
 
 class TestRegistration:
     def test_import_succeeds(self):
-        """Importing server.mcp should not crash — means registration passed."""
         from ticktick_mcp.server import mcp  # noqa: F401
 
     def test_all_decorated_functions_have_docstrings(self):
@@ -346,6 +342,7 @@ class TestRegistration:
 
     def test_all_groups_have_docs(self):
         import inspect
+
         from ticktick_mcp import tools as tools_module
         from ticktick_mcp.registry import ROOT
 

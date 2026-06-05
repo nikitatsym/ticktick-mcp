@@ -5,5 +5,5 @@ from ticktick_mcp.server import mcp
 __version__ = version("ticktick-mcp")
 
 
-def main():
+def main() -> None:
     mcp.run(transport="stdio")
