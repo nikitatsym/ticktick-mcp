@@ -14,7 +14,11 @@ All env vars currently read elsewhere flow through `get_settings()`:
 
 from __future__ import annotations
 
+from functools import lru_cache
+
+import tzlocal
 from pydantic_settings import BaseSettings
+from zoneinfo import ZoneInfoNotFoundError
 
 
 class Settings(BaseSettings):
@@ -39,3 +43,17 @@ def _reset_settings() -> None:
     """Force re-read from env. Used by tests after monkeypatching."""
     global _settings
     _settings = None
+    system_timezone.cache_clear()
+
+
+@lru_cache(maxsize=1)
+def system_timezone() -> str | None:
+    """IANA name of the OS timezone, or None if it can't be determined.
+
+    Surfaced as a hint in help/error text. Never used as a silent fallback —
+    callers must still pass `timeZone` or set MCP_TICKTICK_TIMEZONE.
+    """
+    try:
+        return tzlocal.get_localzone().key
+    except ZoneInfoNotFoundError:
+        return None

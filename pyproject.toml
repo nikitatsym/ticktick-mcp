@@ -15,6 +15,7 @@ dependencies = [
     "pydantic>=2.5",
     "pydantic-settings>=2.0",
     "typing-extensions>=4.5",
+    "tzlocal>=5.0",
 ]
 keywords = ["mcp", "ticktick", "tasks", "model-context-protocol", "claude", "ai"]
 

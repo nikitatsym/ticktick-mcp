@@ -27,7 +27,7 @@ from pydantic import (
 from pydantic_core import PydanticUndefined
 
 from . import tools as _tools_module
-from .config import get_settings
+from .config import get_settings, system_timezone
 from .registry import _UNSET, ROOT, Group, _Unset
 
 ToolFn: TypeAlias = Callable[..., Any]
@@ -203,9 +203,16 @@ def _write_group_banner() -> str:
             "Used when startDate/dueDate has a time and no timeZone param is passed. "
             "The zone actually used is echoed back as _used_timezone in write results."
         )
+    sys_tz = system_timezone()
+    hint = (
+        f" System timezone is {sys_tz!r} — likely the right answer, but confirm with the user."
+        if sys_tz
+        else " System timezone could not be detected — ask the user."
+    )
     return (
         "Timezone fallback (MCP_TICKTICK_TIMEZONE): (unset — timeZone parameter is "
         "required when startDate/dueDate has a time)."
+        + hint
     )
 
 

@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .config import get_settings
+from .config import get_settings, system_timezone
 from .registry import _UNSET
 from .types import SlimTaskDict, TaskDict, TzMeta
 
@@ -144,10 +144,17 @@ def _normalize_date(val: str, field: str, tz: ZoneInfo | None) -> str:
         return f"{val}T00:00:00.000+0000"
     if _NAIVE_DT_RE.match(val):
         if tz is None:
+            sys_tz = system_timezone()
+            hint = (
+                f" System timezone is {sys_tz!r} — likely the right answer, but confirm with the user."
+                if sys_tz
+                else ""
+            )
             raise ValueError(
                 f"{field} has a time component but no timeZone. "
                 "Either pass timeZone or set MCP_TICKTICK_TIMEZONE, "
                 "or use date-only format (YYYY-MM-DD) for all-day tasks."
+                + hint
             )
         if len(val) == 16:  # YYYY-MM-DDTHH:MM
             val += ":00"

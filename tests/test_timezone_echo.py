@@ -5,6 +5,7 @@ zone was resolved (time-of-day normalized OR explicit timeZone param passed).
 The wrapper attaches it as `_used_timezone` so the agent can verify.
 """
 
+import pytest
 
 from ticktick_mcp.prepare import _prepare_task
 
@@ -48,3 +49,23 @@ class TestTzMetaNone:
         monkeypatch.setenv("MCP_TICKTICK_TIMEZONE", "Asia/Tbilisi")
         _task, tz = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15"})
         assert tz is None
+
+
+class TestMissingTzErrorHint:
+    def test_error_includes_system_tz_hint(self, monkeypatch):
+        monkeypatch.delenv("MCP_TICKTICK_TIMEZONE", raising=False)
+        monkeypatch.setattr("ticktick_mcp.prepare.system_timezone", lambda: "Europe/Berlin")
+        with pytest.raises(ValueError) as exc:
+            _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
+        msg = str(exc.value)
+        assert "'Europe/Berlin'" in msg
+        assert "confirm with the user" in msg
+
+    def test_error_without_hint_when_system_tz_undetected(self, monkeypatch):
+        monkeypatch.delenv("MCP_TICKTICK_TIMEZONE", raising=False)
+        monkeypatch.setattr("ticktick_mcp.prepare.system_timezone", lambda: None)
+        with pytest.raises(ValueError) as exc:
+            _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
+        msg = str(exc.value)
+        assert "System timezone" not in msg
+        assert "no timeZone" in msg

@@ -48,6 +48,28 @@ def test_help_write_banner_set(monkeypatch):
     assert "_used_timezone" in text
 
 
+def test_help_write_banner_unset_includes_system_tz_hint(monkeypatch):
+    monkeypatch.delenv("MCP_TICKTICK_TIMEZONE", raising=False)
+    monkeypatch.setattr("ticktick_mcp.server.system_timezone", lambda: "Europe/Berlin")
+    text = _build_help("ticktick_write")
+    assert "'Europe/Berlin'" in text
+    assert "confirm with the user" in text
+
+
+def test_help_write_banner_unset_no_system_tz(monkeypatch):
+    monkeypatch.delenv("MCP_TICKTICK_TIMEZONE", raising=False)
+    monkeypatch.setattr("ticktick_mcp.server.system_timezone", lambda: None)
+    text = _build_help("ticktick_write")
+    assert "could not be detected" in text
+
+
+def test_help_write_banner_set_no_system_hint(monkeypatch):
+    monkeypatch.setenv("MCP_TICKTICK_TIMEZONE", "Asia/Tbilisi")
+    monkeypatch.setattr("ticktick_mcp.server.system_timezone", lambda: "Europe/Berlin")
+    text = _build_help("ticktick_write")
+    assert "System timezone" not in text
+
+
 def test_help_read_no_banner():
     text = _build_help("ticktick_read")
     assert "Timezone fallback" not in text
