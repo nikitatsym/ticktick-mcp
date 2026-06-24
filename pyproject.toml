@@ -36,7 +36,6 @@ dev = [
 markers = [
     "integration: requires a real TickTick account (set TICKTICK_* env vars)",
 ]
-addopts = "-m 'not integration'"
 
 [tool.ruff.lint]
 ignore = ["F541", "F401"]
