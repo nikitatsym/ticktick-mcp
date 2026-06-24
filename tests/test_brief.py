@@ -3,73 +3,75 @@
 import pytest
 
 from ticktick_mcp.prepare import _extract_brief, _inject_brief, _slim_task, _validate_brief
+from ticktick_mcp.types import TaskDict
 
 
 # ── _extract_brief ────────────────────────────────────────────────────────────
 
 
-def test_extract_brief_from_content():
-    task = {"content": "stuff <brief>Buy milk</brief> more"}
+def test_extract_brief_from_content() -> None:
+    task: TaskDict = {"content": "stuff <brief>Buy milk</brief> more"}
     assert _extract_brief(task) == "Buy milk"
 
 
-def test_extract_brief_from_desc():
-    task = {"desc": "<brief>From desc</brief>"}
+def test_extract_brief_from_desc() -> None:
+    task: TaskDict = {"desc": "<brief>From desc</brief>"}
     assert _extract_brief(task) == "From desc"
 
 
-def test_extract_brief_content_takes_priority():
-    task = {"content": "<brief>From content</brief>", "desc": "<brief>From desc</brief>"}
+def test_extract_brief_content_takes_priority() -> None:
+    task: TaskDict = {"content": "<brief>From content</brief>", "desc": "<brief>From desc</brief>"}
     assert _extract_brief(task) == "From content"
 
 
-def test_extract_brief_no_tag():
-    assert _extract_brief({"content": "no tag here"}) is None
+def test_extract_brief_no_tag() -> None:
+    task: TaskDict = {"content": "no tag here"}
+    assert _extract_brief(task) is None
 
 
-def test_extract_brief_empty():
+def test_extract_brief_empty() -> None:
     assert _extract_brief({}) is None
 
 
-def test_extract_brief_strips_whitespace():
-    task = {"content": "<brief>  padded  </brief>"}
+def test_extract_brief_strips_whitespace() -> None:
+    task: TaskDict = {"content": "<brief>  padded  </brief>"}
     assert _extract_brief(task) == "padded"
 
 
-def test_extract_brief_multiline():
-    task = {"content": "<brief>\nline1\nline2\n</brief>"}
+def test_extract_brief_multiline() -> None:
+    task: TaskDict = {"content": "<brief>\nline1\nline2\n</brief>"}
     assert _extract_brief(task) == "line1\nline2"
 
 
 # ── _inject_brief ─────────────────────────────────────────────────────────────
 
 
-def test_inject_brief_no_content():
+def test_inject_brief_no_content() -> None:
     assert _inject_brief("Buy milk", None) == "<brief>Buy milk</brief>"
 
 
-def test_inject_brief_empty_content():
+def test_inject_brief_empty_content() -> None:
     assert _inject_brief("Buy milk", "") == "<brief>Buy milk</brief>"
 
 
-def test_inject_brief_prepends_to_content():
+def test_inject_brief_prepends_to_content() -> None:
     result = _inject_brief("Buy milk", "existing notes")
     assert result == "<brief>Buy milk</brief>\nexisting notes"
 
 
-def test_inject_brief_replaces_existing():
+def test_inject_brief_replaces_existing() -> None:
     result = _inject_brief("New", "before <brief>Old</brief> after")
     assert result == "before <brief>New</brief> after"
 
 
-def test_inject_brief_replaces_all_occurrences():
+def test_inject_brief_replaces_all_occurrences() -> None:
     result = _inject_brief("New", "<brief>A</brief> mid <brief>B</brief>")
     assert result == "<brief>New</brief> mid <brief>New</brief>"
 
 
 # ── _slim_task ────────────────────────────────────────────────────────────────
 
-FULL_TASK = {
+FULL_TASK: TaskDict = {
     "id": "abc123",
     "projectId": "proj1",
     "title": "Buy groceries",
@@ -96,7 +98,7 @@ FULL_TASK = {
 }
 
 
-def test_slim_keeps_only_essential_fields():
+def test_slim_keeps_only_essential_fields() -> None:
     result = _slim_task(FULL_TASK)
     assert set(result.keys()) == {
         "id", "projectId", "title", "status", "priority",
@@ -106,14 +108,14 @@ def test_slim_keeps_only_essential_fields():
     assert result["title"] == "Buy groceries"
 
 
-def test_slim_no_desc_or_content():
+def test_slim_no_desc_or_content() -> None:
     result = _slim_task(FULL_TASK)
     assert "content" not in result
     assert "desc" not in result
     assert "brief" not in result
 
 
-def test_slim_strips_verbose_fields():
+def test_slim_strips_verbose_fields() -> None:
     result = _slim_task(FULL_TASK)
     for field in ("items", "reminders", "repeatFlag", "sortOrder", "etag",
                   "modifiedTime", "timeZone", "isAllDay", "completedTime",
@@ -121,9 +123,9 @@ def test_slim_strips_verbose_fields():
         assert field not in result
 
 
-def test_slim_missing_optional_fields():
+def test_slim_missing_optional_fields() -> None:
     """Slim handles tasks that lack optional fields like tags, parentId."""
-    minimal = {"id": "x", "title": "Minimal", "status": 0}
+    minimal: TaskDict = {"id": "x", "title": "Minimal", "status": 0}
     result = _slim_task(minimal)
     assert result == {"id": "x", "title": "Minimal", "status": 0}
 
@@ -134,40 +136,40 @@ def test_slim_missing_optional_fields():
 class TestValidateBriefContentPath:
     """Brief validation via the content path (no `brief` parameter)."""
 
-    def test_valid_brief_in_content(self, monkeypatch):
+    def test_valid_brief_in_content(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
         _validate_brief("<brief>Short summary</brief>\nFull body.")
 
-    def test_missing_brief_tag_raises(self, monkeypatch):
+    def test_missing_brief_tag_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
         with pytest.raises(ValueError, match="Pass the 'brief' parameter"):
             _validate_brief("Content without brief tag")
 
-    def test_none_content_raises(self, monkeypatch):
+    def test_none_content_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
         with pytest.raises(ValueError, match="Pass the 'brief' parameter"):
             _validate_brief(None)
 
-    def test_empty_content_raises(self, monkeypatch):
+    def test_empty_content_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
         with pytest.raises(ValueError, match="Pass the 'brief' parameter"):
             _validate_brief("")
 
-    def test_too_long_raises(self, monkeypatch):
+    def test_too_long_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
         with pytest.raises(ValueError, match="too long"):
             _validate_brief(f"<brief>{'x' * 201}</brief>")
 
-    def test_at_max_length_ok(self, monkeypatch):
+    def test_at_max_length_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
         _validate_brief(f"<brief>{'x' * 200}</brief>")
 
-    def test_disabled(self, monkeypatch):
+    def test_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "0")
         _validate_brief("no brief, no problem")
         _validate_brief(None)
 
-    def test_custom_max_length(self, monkeypatch):
+    def test_custom_max_length(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "50")
         _validate_brief(f"<brief>{'x' * 50}</brief>")
         with pytest.raises(ValueError, match="too long"):
@@ -177,20 +179,20 @@ class TestValidateBriefContentPath:
 class TestValidateBriefParamPath:
     """Brief validation via the `brief` parameter path."""
 
-    def test_valid_param(self, monkeypatch):
+    def test_valid_param(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
         _validate_brief(None, brief_param="A short summary")
 
-    def test_empty_param_raises(self, monkeypatch):
+    def test_empty_param_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
         with pytest.raises(ValueError, match="brief parameter must be non-empty"):
             _validate_brief(None, brief_param="")
 
-    def test_param_too_long_raises(self, monkeypatch):
+    def test_param_too_long_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "50")
         with pytest.raises(ValueError, match="brief too long"):
             _validate_brief(None, brief_param="x" * 51)
 
-    def test_disabled_skips_param_check(self, monkeypatch):
+    def test_disabled_skips_param_check(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "0")
         _validate_brief(None, brief_param="")  # empty allowed when off

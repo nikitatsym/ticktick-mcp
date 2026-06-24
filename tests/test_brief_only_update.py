@@ -5,6 +5,7 @@ tag — passing brief alone must NOT clobber the rest of the body. This is the
 behaviour the original tools.py:186-188 implemented; v2.5 preserves it.
 """
 
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,13 +14,13 @@ from ticktick_mcp.server import _dispatch
 
 
 @pytest.fixture()
-def mock_client():
+def mock_client() -> Iterator[MagicMock]:
     client = MagicMock()
     with patch("ticktick_mcp.tools._get_client", return_value=client):
         yield client
 
 
-def test_brief_only_update_fetches_existing(mock_client):
+def test_brief_only_update_fetches_existing(mock_client: MagicMock) -> None:
     mock_client.get_task.return_value = {
         "id": "t1",
         "projectId": "p1",
@@ -39,7 +40,7 @@ def test_brief_only_update_fetches_existing(mock_client):
     assert "existing body text" in sent["content"]
 
 
-def test_brief_and_content_does_not_fetch(mock_client):
+def test_brief_and_content_does_not_fetch(mock_client: MagicMock) -> None:
     mock_client.update_task.return_value = {
         "id": "t1", "projectId": "p1",
     }
@@ -53,7 +54,7 @@ def test_brief_and_content_does_not_fetch(mock_client):
     assert "wholly new body" in sent["content"]
 
 
-def test_empty_brief_raises_before_fetch(mock_client):
+def test_empty_brief_raises_before_fetch(mock_client: MagicMock) -> None:
     with pytest.raises(ValueError, match="brief parameter must be non-empty"):
         _dispatch("UpdateTask", "ticktick_write", {
             "taskId": "t1", "projectId": "p1", "brief": "",
@@ -62,7 +63,7 @@ def test_empty_brief_raises_before_fetch(mock_client):
     mock_client.update_task.assert_not_called()
 
 
-def test_no_brief_no_content_no_fetch(mock_client):
+def test_no_brief_no_content_no_fetch(mock_client: MagicMock) -> None:
     """Update with only a title change — no fetch, no brief validation."""
     mock_client.update_task.return_value = {"id": "t1", "projectId": "p1", "title": "New"}
     _dispatch("UpdateTask", "ticktick_write", {

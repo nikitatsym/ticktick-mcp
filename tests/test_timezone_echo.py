@@ -11,7 +11,7 @@ from ticktick_mcp.prepare import _prepare_task
 
 
 class TestTzMetaEmit:
-    def test_emit_on_explicit_param_with_time(self):
+    def test_emit_on_explicit_param_with_time(self) -> None:
         _task, tz = _prepare_task({
             "title": "T", "brief": "B",
             "dueDate": "2026-03-15T19:00",
@@ -19,7 +19,7 @@ class TestTzMetaEmit:
         })
         assert tz == {"used": "Europe/Berlin", "source": "param"}
 
-    def test_emit_on_env_fallback_with_time(self, monkeypatch):
+    def test_emit_on_env_fallback_with_time(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MCP_TICKTICK_TIMEZONE", "Asia/Tbilisi")
         _task, tz = _prepare_task({
             "title": "T", "brief": "B",
@@ -27,7 +27,7 @@ class TestTzMetaEmit:
         })
         assert tz == {"used": "Asia/Tbilisi", "source": "env:MCP_TICKTICK_TIMEZONE"}
 
-    def test_emit_on_explicit_param_no_date(self):
+    def test_emit_on_explicit_param_no_date(self) -> None:
         """timeZone passed by itself (e.g. updating only timezone) should still echo."""
         _task, tz = _prepare_task(
             {"projectId": "p1", "timeZone": "Europe/Berlin"}, is_update=True
@@ -36,15 +36,15 @@ class TestTzMetaEmit:
 
 
 class TestTzMetaNone:
-    def test_none_on_dateonly_no_param(self):
+    def test_none_on_dateonly_no_param(self) -> None:
         _task, tz = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15"})
         assert tz is None
 
-    def test_none_on_no_date_no_param(self):
+    def test_none_on_no_date_no_param(self) -> None:
         _task, tz = _prepare_task({"title": "T", "brief": "B"})
         assert tz is None
 
-    def test_none_on_dateonly_with_env_set(self, monkeypatch):
+    def test_none_on_dateonly_with_env_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Env var set but no time-of-day and no explicit param → no echo."""
         monkeypatch.setenv("MCP_TICKTICK_TIMEZONE", "Asia/Tbilisi")
         _task, tz = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15"})
@@ -52,7 +52,7 @@ class TestTzMetaNone:
 
 
 class TestMissingTzErrorHint:
-    def test_error_includes_system_tz_hint(self, monkeypatch):
+    def test_error_includes_system_tz_hint(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("MCP_TICKTICK_TIMEZONE", raising=False)
         monkeypatch.setattr("ticktick_mcp.prepare.system_timezone", lambda: "Europe/Berlin")
         with pytest.raises(ValueError) as exc:
@@ -61,7 +61,7 @@ class TestMissingTzErrorHint:
         assert "'Europe/Berlin'" in msg
         assert "confirm with the user" in msg
 
-    def test_error_without_hint_when_system_tz_undetected(self, monkeypatch):
+    def test_error_without_hint_when_system_tz_undetected(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("MCP_TICKTICK_TIMEZONE", raising=False)
         monkeypatch.setattr("ticktick_mcp.prepare.system_timezone", lambda: None)
         with pytest.raises(ValueError) as exc:

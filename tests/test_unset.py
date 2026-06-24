@@ -11,15 +11,15 @@ from ticktick_mcp.registry import _UNSET, _Unset
 from ticktick_mcp.server import _build_help, _build_schema
 
 
-def test_unset_singleton():
+def test_unset_singleton() -> None:
     assert _UNSET is _Unset()
 
 
-def test_unset_is_falsy():
+def test_unset_is_falsy() -> None:
     assert not _UNSET
 
 
-def test_unset_not_in_dispatched_kwargs():
+def test_unset_not_in_dispatched_kwargs() -> None:
     """model.model_validate({}) → model_dump(exclude_unset=True) drops the sentinel."""
     model = getattr(_tools_module.create_task, "_params_model")
     validated = model.model_validate({"title": "T", "brief": "B"})
@@ -35,7 +35,7 @@ def test_unset_not_in_dispatched_kwargs():
         assert v is not _UNSET
 
 
-def test_unset_not_in_schema():
+def test_unset_not_in_schema() -> None:
     schema = _build_schema("ticktick_write", "CreateTask")
     s = json.dumps(schema)
     assert "_Unset" not in s
@@ -43,14 +43,14 @@ def test_unset_not_in_schema():
     assert "PydanticUndefined" not in s
 
 
-def test_unset_not_in_help():
+def test_unset_not_in_help() -> None:
     text = _build_help("ticktick_write")
     assert "_Unset" not in text
     assert "_UNSET" not in text
     assert "PydanticUndefined" not in text
 
 
-def test_optional_params_render_with_question_mark():
+def test_optional_params_render_with_question_mark() -> None:
     text = _build_help("ticktick_write")
     # CreateTask has brief? content? projectId? all optional via _UNSET
     assert "brief?:" in text
@@ -58,7 +58,7 @@ def test_optional_params_render_with_question_mark():
     assert "projectId?:" in text
 
 
-def test_required_params_render_without_question_mark():
+def test_required_params_render_without_question_mark() -> None:
     text = _build_help("ticktick_write")
     # CreateTask title is required (no _UNSET default)
     # CompleteTask projectId/taskId are required
