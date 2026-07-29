@@ -124,15 +124,21 @@ class TickTickClient:
     # ── Today ─────────────────────────────────────────────
 
     @staticmethod
-    def _parse_date(date_str: str | None) -> datetime | None:
-        """Parse a TickTick date string (e.g. '2024-01-15T09:00:00.000+0000')."""
+    def _parse_date(date_str: str | None, task_id: str = "") -> datetime | None:
+        """Parse a TickTick date string (e.g. '2024-01-15T09:00:00.000+0000').
+
+        None means the task carries no date. A date that will not parse is a
+        break in TickTick's format, not an absent one: returning None for it
+        would drop the task from a due-date filter that promises every match.
+        """
         if not date_str:
             return None
         clean = date_str.replace("+0000", "+00:00").replace("+00:00:00", "+00:00")
         try:
             return datetime.fromisoformat(clean)
-        except ValueError:
-            return None
+        except ValueError as e:
+            where = f" on task {task_id}" if task_id else ""
+            raise ValueError(f"unparseable TickTick date {date_str!r}{where}") from e
 
     def get_today_tasks(self) -> list[TaskDict]:
         """All uncompleted tasks due today or earlier (overdue)."""
@@ -159,7 +165,7 @@ class TickTickClient:
                 seen.add(tid)
                 if task.get("status", 0) == 2:
                     continue
-                due = self._parse_date(task.get("dueDate"))
+                due = self._parse_date(task.get("dueDate"), tid)
                 if due and due <= end_of_today:
                     tasks.append(task)
 
