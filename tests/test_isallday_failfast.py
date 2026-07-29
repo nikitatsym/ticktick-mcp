@@ -33,7 +33,7 @@ class TestUpdateFailFast:
             )
 
     def test_allday_true_with_positive_trigger_passes(self) -> None:
-        task, _ = _prepare_task(
+        task = _prepare_task(
             {
                 "projectId": "p1",
                 "isAllDay": True,
@@ -69,7 +69,7 @@ class TestUpdateFailFast:
     def test_dateonly_duedate_implies_allday_no_failfast(self) -> None:
         """Date-only dueDate implies isAllDay=True even on UpdateTask, so the
         fail-fast rule should NOT trigger (inferred mode is enough)."""
-        task, _ = _prepare_task(
+        task = _prepare_task(
             {"projectId": "p1", "dueDate": "2026-03-15"},
             is_update=True,
         )
@@ -78,14 +78,14 @@ class TestUpdateFailFast:
 
 class TestCreateInference:
     def test_reminders_with_dateonly_infers_allday_true(self) -> None:
-        task, _ = _prepare_task(
+        task = _prepare_task(
             {"title": "T", "brief": "B", "dueDate": "2026-03-15", "reminders": ["TRIGGER:PT9H"]}
         )
         assert task["isAllDay"] is True
         assert task["reminders"] == ["TRIGGER:PT9H"]
 
     def test_reminders_with_timeofday_infers_allday_false(self) -> None:
-        task, _ = _prepare_task(
+        task = _prepare_task(
             {
                 "title": "T",
                 "brief": "B",
@@ -102,7 +102,7 @@ class TestCreateInference:
             _prepare_task({"title": "T", "brief": "B", "reminders": ["TRIGGER:PT9H"]})
 
     def test_reminders_with_explicit_allday_passes(self) -> None:
-        task, _ = _prepare_task(
+        task = _prepare_task(
             {"title": "T", "brief": "B", "isAllDay": True, "reminders": ["TRIGGER:PT9H"]}
         )
         assert task["isAllDay"] is True

@@ -23,6 +23,7 @@ from .prepare import (
     _prepare_project,
     _prepare_task,
     _slim_task,
+    _validate_timezone,
     _verify_response,
 )
 from .registry import _UNSET, ROOT, Group, _op
@@ -38,16 +39,12 @@ def _get_client() -> TickTickClient:
     return _client
 
 
-def _attach_tz(result: dict[str, Any], tz_meta: Any) -> dict[str, Any]:
-    """Splice the wrapper-side timezone echo into a dict result (no-op otherwise)."""
-    if tz_meta:
-        out = dict(result)
-        out["_used_timezone"] = tz_meta
-        return out
-    return result
-
-
 # ── Groups ───────────────────────────────────────────────────────────────────
+
+_TIMEZONE_DESC = (
+    "IANA timezone name (e.g. 'Europe/Berlin'). No fallback of any kind - "
+    "the zone is never taken from env or the system."
+)
 
 _GROUP_USAGE = (
     "\n\n"
@@ -95,14 +92,17 @@ def ticktick_version() -> dict[str, Any]:
 
 
 @_op(ticktick_read)
-def get_today() -> list[SlimTaskDict]:
-    """Get all uncompleted tasks due today or earlier (overdue).
+def get_today(
+    timeZone: Annotated[str, Field(description="Day boundaries for 'today' are computed in this zone. " + _TIMEZONE_DESC)],
+) -> list[SlimTaskDict]:
+    """Get all uncompleted tasks due today in the given timezone, or earlier (overdue).
 
     Same as the 'Today' view in TickTick. Tasks are returned in slim form
     (id, projectId, title, status, priority, dueDate, tags, parentId,
-    childIds) — call GetTask for the full body of a specific task.
+    childIds) - call GetTask for the full body of a specific task.
     """
-    return [_slim_task(t) for t in _get_client().get_today_tasks()]
+    tz = _validate_timezone(timeZone)
+    return [_slim_task(t) for t in _get_client().get_today_tasks(tz)]
 
 
 @_op(ticktick_read)
@@ -190,10 +190,9 @@ def create_task(
     ))] = cast(bool | None, _UNSET),
     priority: Annotated[int | None, Field(description="0 = none, 1 = low, 3 = medium, 5 = high.")] = cast(int | None, _UNSET),
     tags: Annotated[list[str] | None, Field(description="Tag names (auto-created if missing).")] = cast(list[str] | None, _UNSET),
-    timeZone: Annotated[str | None, Field(description=(
-        "IANA name (e.g. 'Europe/Berlin'). REQUIRED when startDate/dueDate has a time. "
-        "Falls back to MCP_TICKTICK_TIMEZONE env var (echoed in result as _used_timezone)."
-    ))] = cast(str | None, _UNSET),
+    timeZone: Annotated[str | None, Field(
+        description="Required when startDate/dueDate has a time of day. " + _TIMEZONE_DESC
+    )] = cast(str | None, _UNSET),
     reminders: Annotated[list[str] | None, Field(description=(
         "iCal TRIGGER durations. All-day: positive offsets from midnight, "
         "e.g. ['TRIGGER:PT9H'] = 9am. Timed: negative offsets from event, "
@@ -204,17 +203,15 @@ def create_task(
 ) -> dict[str, Any]:
     """Create a new task. Requires brief or <brief>…</brief> in content (unless MCP_TICKTICK_BRIEF_MAX=0).
 
-    When you pass a time of day (HH:MM), pass timeZone explicitly — falls back to
-    MCP_TICKTICK_TIMEZONE env var, which can surprise. The zone actually used
-    is echoed back as _used_timezone in the result so you can verify.
+    Time-of-day dates (HH:MM) require timeZone; date-only dates are all-day and need no zone.
 
     Reminders require isAllDay to be set or inferable. Triggers must match the
     mode: PT9H (all-day) vs -PT5M (timed). The wrapper validates fail-fast.
     """
-    task, tz_meta = _prepare_task(dict(locals()))
+    task = _prepare_task(dict(locals()))
     result = _get_client().create_task(task)
     _verify_response(task, result)
-    return _attach_tz(dict(result), tz_meta)
+    return dict(result)
 
 
 @_op(ticktick_write)
@@ -240,10 +237,9 @@ def update_task(
     ))] = cast(bool | None, _UNSET),
     priority: Annotated[int | None, Field(description="0 = none, 1 = low, 3 = medium, 5 = high.")] = cast(int | None, _UNSET),
     tags: Annotated[list[str] | None, Field(description="Replacement tag list.")] = cast(list[str] | None, _UNSET),
-    timeZone: Annotated[str | None, Field(description=(
-        "IANA name. REQUIRED when startDate/dueDate has a time. "
-        "Falls back to MCP_TICKTICK_TIMEZONE env var (echoed as _used_timezone)."
-    ))] = cast(str | None, _UNSET),
+    timeZone: Annotated[str | None, Field(
+        description="Required when startDate/dueDate has a time of day. " + _TIMEZONE_DESC
+    )] = cast(str | None, _UNSET),
     reminders: Annotated[list[str] | None, Field(description=(
         "Replacement TRIGGER list. PT9H (positive) for all-day, -PT5M (negative) for timed. "
         "isAllDay must be passed explicitly alongside this to avoid silent drop."
@@ -259,8 +255,7 @@ def update_task(
     When changing reminders/startDate/dueDate, isAllDay MUST be passed explicitly:
     the API silently drops it otherwise, and reminder trigger format depends on it.
 
-    Time-of-day on startDate/dueDate requires timeZone. Falls back to
-    MCP_TICKTICK_TIMEZONE — the zone actually used is echoed as _used_timezone.
+    Time-of-day dates (HH:MM) require timeZone; date-only dates are all-day and need no zone.
     """
     params = dict(locals())
 
@@ -277,10 +272,10 @@ def update_task(
         existing = _get_client().get_task(projectId, taskId)
         params["content"] = existing.get("content") or ""
 
-    task, tz_meta = _prepare_task(params, is_update=True)
+    task = _prepare_task(params, is_update=True)
     result = _get_client().update_task(taskId, task)
     _verify_response(task, result)
-    return _attach_tz(dict(result), tz_meta)
+    return dict(result)
 
 
 @_op(ticktick_write)

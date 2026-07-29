@@ -39,7 +39,7 @@ class TestValidateTimezone:
 
 class TestNormalizeDate:
     _tz_berlin = ZoneInfo("Europe/Berlin")
-    _tz_tbilisi = ZoneInfo("Asia/Tbilisi")
+    _tz_dubai = ZoneInfo("Asia/Dubai")
 
     def test_date_only_no_tz(self) -> None:
         assert _normalize_date("2026-03-20", "dueDate", None) == "2026-03-20T00:00:00.000+0000"
@@ -51,8 +51,8 @@ class TestNormalizeDate:
         result = _normalize_date("2026-03-15T19:00:00", "dueDate", self._tz_berlin)
         assert result == "2026-03-15T19:00:00.000+0100"
 
-    def test_naive_datetime_tbilisi(self) -> None:
-        result = _normalize_date("2026-03-15T15:00:00", "dueDate", self._tz_tbilisi)
+    def test_naive_datetime_dubai(self) -> None:
+        result = _normalize_date("2026-03-15T15:00:00", "dueDate", self._tz_dubai)
         assert result == "2026-03-15T15:00:00.000+0400"
 
     def test_naive_datetime_short_form(self) -> None:
@@ -174,24 +174,22 @@ class TestVerifyResponse:
 
 class TestPrepareTask:
     def test_create_basic(self) -> None:
-        task, tz = _prepare_task({"title": "Buy milk", "brief": "Buy milk"})
+        task = _prepare_task({"title": "Buy milk", "brief": "Buy milk"})
         assert task["title"] == "Buy milk"
         assert "<brief>Buy milk</brief>" in task["content"]
         assert "brief" not in task
-        assert tz is None
 
     def test_create_normalizes_date_only(self) -> None:
-        task, _ = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
+        task = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
         assert task["dueDate"] == "2026-03-20T00:00:00.000+0000"
 
     def test_create_normalizes_datetime_with_tz(self) -> None:
-        task, tz = _prepare_task({
+        task = _prepare_task({
             "title": "T", "brief": "B",
-            "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Tbilisi",
+            "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Dubai",
         })
         assert task["dueDate"] == "2026-03-20T10:00:00.000+0400"
-        assert task["timeZone"] == "Asia/Tbilisi"
-        assert tz == {"used": "Asia/Tbilisi", "source": "param"}
+        assert task["timeZone"] == "Asia/Dubai"
 
     def test_create_rejects_manual_offset(self) -> None:
         with pytest.raises(ValueError, match="manual UTC offsets"):
@@ -205,7 +203,7 @@ class TestPrepareTask:
             _prepare_task({"title": "T", "brief": "B", "priority": 2})
 
     def test_create_coerces_priority_str(self) -> None:
-        task, _ = _prepare_task({"title": "T", "brief": "B", "priority": "3"})
+        task = _prepare_task({"title": "T", "brief": "B", "priority": "3"})
         assert task["priority"] == 3
 
     def test_create_requires_title(self) -> None:
@@ -213,7 +211,7 @@ class TestPrepareTask:
             _prepare_task({"brief": "B"})
 
     def test_update_basic(self) -> None:
-        task, _ = _prepare_task(
+        task = _prepare_task(
             {"projectId": "p1", "title": "New"},
             is_update=True,
         )
@@ -222,7 +220,7 @@ class TestPrepareTask:
         assert "taskId" not in task
 
     def test_skips_none_values(self) -> None:
-        task, _ = _prepare_task({
+        task = _prepare_task({
             "title": "T", "brief": "B",
             "dueDate": None, "priority": None,
         })
@@ -230,37 +228,37 @@ class TestPrepareTask:
         assert "priority" not in task
 
     def test_coerces_isAllDay_bool(self) -> None:
-        task, _ = _prepare_task({"title": "T", "brief": "B", "isAllDay": True})
+        task = _prepare_task({"title": "T", "brief": "B", "isAllDay": True})
         assert task["isAllDay"] is True
 
     def test_coerces_isAllDay_str(self) -> None:
-        task, _ = _prepare_task({"title": "T", "brief": "B", "isAllDay": "true"})
+        task = _prepare_task({"title": "T", "brief": "B", "isAllDay": "true"})
         assert task["isAllDay"] is True
 
     def test_coerces_isAllDay_str_false(self) -> None:
-        task, _ = _prepare_task({"title": "T", "brief": "B", "isAllDay": "false"})
+        task = _prepare_task({"title": "T", "brief": "B", "isAllDay": "false"})
         assert task["isAllDay"] is False
 
     def test_date_only_auto_isAllDay(self) -> None:
-        task, _ = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
+        task = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
         assert task["isAllDay"] is True
 
     def test_date_only_explicit_isAllDay_false(self) -> None:
-        task, _ = _prepare_task({
+        task = _prepare_task({
             "title": "T", "brief": "B",
             "dueDate": "2026-03-20", "isAllDay": False,
         })
         assert task["isAllDay"] is False
 
     def test_datetime_no_auto_isAllDay(self) -> None:
-        task, _ = _prepare_task({
+        task = _prepare_task({
             "title": "T", "brief": "B",
-            "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Tbilisi",
+            "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Dubai",
         })
         assert "isAllDay" not in task
 
     def test_startDate_date_only_auto_isAllDay(self) -> None:
-        task, _ = _prepare_task({"title": "T", "brief": "B", "startDate": "2026-03-20"})
+        task = _prepare_task({"title": "T", "brief": "B", "startDate": "2026-03-20"})
         assert task["isAllDay"] is True
 
     def test_does_not_mutate_input(self) -> None:
@@ -278,7 +276,7 @@ class TestPrepareTask:
 
     def test_update_no_brief_no_content_skips_validation(self) -> None:
         """Update with neither brief nor content should not trigger brief validation."""
-        task, _ = _prepare_task(
+        task = _prepare_task(
             {"projectId": "p1", "title": "New"},
             is_update=True,
         )

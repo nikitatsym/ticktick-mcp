@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .config import get_settings, system_timezone
 from .registry import _UNSET
-from .types import SlimTaskDict, TaskDict, TzMeta
+from .types import SlimTaskDict, TaskDict
 
 _BRIEF_RE = re.compile(r"<brief>(.*?)</brief>", re.DOTALL)
 
@@ -123,7 +123,7 @@ def _validate_timezone(tz: str) -> ZoneInfo:
         return ZoneInfo(tz)
     except (ZoneInfoNotFoundError, KeyError, ValueError):
         raise ValueError(
-            f"Unknown timezone: '{tz}'. Use IANA names like 'Europe/Berlin', 'Asia/Tbilisi'."
+            f"Unknown timezone: '{tz}'. Use IANA names like 'Europe/Berlin'."
         )
 
 
@@ -146,15 +146,14 @@ def _normalize_date(val: str, field: str, tz: ZoneInfo | None) -> str:
         if tz is None:
             sys_tz = system_timezone()
             hint = (
-                f" System timezone is {sys_tz!r} — likely the right answer, but confirm with the user."
+                f" System timezone is {sys_tz!r} - possibly a container artifact, not the user's zone; confirm with the user before using it."
                 if sys_tz
                 else ""
             )
             raise ValueError(
                 f"{field} has a time component but no timeZone. "
-                "Either pass timeZone or set MCP_TICKTICK_TIMEZONE, "
-                "or use date-only format (YYYY-MM-DD) for all-day tasks."
-                + hint
+                "Pass timeZone (IANA name), or use date-only format "
+                "(YYYY-MM-DD) for all-day tasks." + hint
             )
         if len(val) == 16:  # YYYY-MM-DDTHH:MM
             val += ":00"
@@ -248,17 +247,12 @@ def _coerce_bool(v: Any) -> bool:
     return bool(v)
 
 
-def _prepare_task(
-    params: dict[str, Any],
-    is_update: bool = False,
-) -> tuple[dict[str, Any], TzMeta | None]:
-    """Build (validated task payload, optional timezone-echo metadata).
+def _prepare_task(params: dict[str, Any], is_update: bool = False) -> dict[str, Any]:
+    """Build the validated task payload for the TickTick API.
 
-    Returns the task dict ready for the TickTick API, paired with `tz_meta`
-    that describes which timezone was actually used (and whether it came from
-    a `timeZone` param or the `MCP_TICKTICK_TIMEZONE` fallback). The wrapper
-    surfaces `tz_meta` in the API response so the agent can verify the zone
-    it just wrote under — closes the silent-fallback failure mode.
+    Assembles the wire dict from `params` and validates it on the way: the
+    brief rule, date normalization against the `timeZone` param, isAllDay
+    inference and its fail-fast rules, priorities, and reminder triggers.
     """
     # 1. Strip the _UNSET sentinel so existing `is not None` checks below
     #    correctly see "key absent" for omitted params.
@@ -281,11 +275,8 @@ def _prepare_task(
     else:
         _validate_brief(content, brief_param=brief_param)
 
-    # 2. Resolve timezone (param > env fallback). Track its source for echo.
-    explicit_tz = params.get("timeZone")
-    settings = get_settings()
-    env_tz = settings.mcp_ticktick_timezone or None
-    tz_name: str | None = explicit_tz or env_tz
+    # 2. The zone has exactly one source: the timeZone param.
+    tz_name = params.get("timeZone")
     tz: ZoneInfo | None = _validate_timezone(tz_name) if tz_name else None
 
     has_time_of_day = any(
@@ -296,8 +287,7 @@ def _prepare_task(
     )
 
     # 3. Normalize dates. _normalize_date raises if a time-of-day was passed
-    #    but tz is still None, so by the time we leave this loop a resolved
-    #    zone has been used iff has_time_of_day is true.
+    #    but tz is None, so a time-of-day never reaches the wire zone-less.
     for field in ("startDate", "dueDate"):
         if params.get(field) is not None:
             params[field] = _normalize_date(params[field], field, tz)
@@ -369,18 +359,7 @@ def _prepare_task(
     for key in _TASK_API_FIELDS:
         if params.get(key) is not None:
             task[key] = params[key]
-
-    # 10. Compute tz_meta. Emit whenever a zone was resolved (either time-of-day
-    #     was normalized, or an explicit timeZone param came through). When
-    #     no zone touched any field at all, return None.
-    tz_meta: TzMeta | None
-    if tz is not None and (has_time_of_day or explicit_tz):
-        source = "param" if explicit_tz else "env:MCP_TICKTICK_TIMEZONE"
-        tz_meta = TzMeta(used=str(tz), source=source)
-    else:
-        tz_meta = None
-
-    return task, tz_meta
+    return task
 
 
 def _prepare_project(

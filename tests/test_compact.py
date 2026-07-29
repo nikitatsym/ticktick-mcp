@@ -15,6 +15,7 @@ import inspect
 from collections.abc import Iterator
 from typing import cast
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -101,7 +102,7 @@ def test_help_surfaces_docstring_body() -> None:
     """Non-type constraints in docstring body must appear in help output."""
     text = _build_help("ticktick_write")
     assert "<brief>" in text
-    assert "YYYY-MM-DD" in text or "MCP_TICKTICK_TIMEZONE" in text
+    assert "YYYY-MM-DD" in text
 
 
 # ── Scope mismatch ───────────────────────────────────────────────────────────
@@ -167,10 +168,10 @@ def test_get_today(mock_client: MagicMock) -> None:
     mock_client.get_today_tasks.return_value = [
         {"id": "1", "title": "Task 1", "status": 0, "content": "<brief>Do stuff</brief>"}
     ]
-    result = _dispatch("GetToday", "ticktick_read", {})
+    result = _dispatch("GetToday", "ticktick_read", {"timeZone": "Europe/Berlin"})
     assert isinstance(result, list)
     assert result[0]["id"] == "1"
-    mock_client.get_today_tasks.assert_called_once()
+    mock_client.get_today_tasks.assert_called_once_with(ZoneInfo("Europe/Berlin"))
 
 
 def test_get_today_slim_strips_content(mock_client: MagicMock) -> None:
@@ -179,7 +180,7 @@ def test_get_today_slim_strips_content(mock_client: MagicMock) -> None:
         {"id": "1", "title": "T", "status": 0,
          "content": "<brief>B</brief>", "sortOrder": 123}
     ]
-    result = _dispatch("GetToday", "ticktick_read", {})
+    result = _dispatch("GetToday", "ticktick_read", {"timeZone": "Europe/Berlin"})
     assert "sortOrder" not in result[0]
     assert "content" not in result[0]
 

@@ -12,9 +12,8 @@ MCP client.
 - Pydantic param validation with `extra='forbid'` — unknown keys, missing required fields, and wrong types fail loudly
 - Per-op `operation='schema'` returning a full JSON Schema; `operation='help'` with substring search (`params={'search':'X'}`)
 - Brief enforcement: writes require a `<brief>summary</brief>` tag (or a `brief` parameter that injects it) so list views stay scannable
-- Fail-fast on the two API silent-drop traps:
-  - `isAllDay` must be passed explicitly when changing `reminders`/`startDate`/`dueDate`
-  - `MCP_TICKTICK_TIMEZONE` fallback is echoed back as `_used_timezone` in every write result
+- Fail-fast on the API's silent-drop trap: `isAllDay` must be passed explicitly when changing `reminders`/`startDate`/`dueDate`
+- Explicit timezone contract - any operation where a zone matters takes an explicit timeZone parameter; no env or system fallback
 - Zero-config install via `uvx`
 
 ## Quick Start
@@ -55,7 +54,6 @@ Requires [uv](https://docs.astral.sh/uv/getting-started/installation/).
 | `TICKTICK_CLIENT_SECRET` | Yes | — | OAuth client secret. |
 | `TICKTICK_ACCESS_TOKEN` | Yes | — | Bearer token issued by the OAuth flow. The setup page generates this for you. |
 | `MCP_TICKTICK_BRIEF_MAX` | No | `100` | Max length of the `<brief>` tag. `0` disables enforcement entirely. |
-| `MCP_TICKTICK_TIMEZONE` | No | (unset) | IANA name (e.g. `Europe/Berlin`) used as a fallback when a caller passes `startDate`/`dueDate` with a time but no `timeZone`. The zone actually used is echoed back in every write result as `_used_timezone` so the agent can verify — leaving it unset forces callers to be explicit. |
 
 ## Tool Groups
 
@@ -70,6 +68,8 @@ surface per scope, dispatched via `operation` + `params`.
 
 `MoveTask` moves a task between projects as copy+delete (the API has no move);
 the copy gets a new id, returned in the result.
+
+`GetToday` takes a required `timeZone` - "today" is computed in that zone.
 
 Each meta-tool takes `operation` (PascalCase op name, or `help` / `schema`)
 plus a `params` dict:
@@ -112,31 +112,13 @@ sends the rest back unchanged.
 
 ### Timezone semantics
 
-When `startDate`/`dueDate` has a time of day (`HH:MM`), the wrapper needs an
-IANA timezone to normalize it. Resolution order:
-
-1. `timeZone` parameter (preferred — explicit and traceable).
-2. `MCP_TICKTICK_TIMEZONE` env var fallback.
-
-If neither is set and a time of day is passed, the call fails with a clear
-error rather than guessing UTC.
-
-Every write result includes a wrapper-side `_used_timezone` field:
-
-```json
-{
-  "id": "...", "title": "Sync", "dueDate": "2026-06-10T13:00:00.000+0400",
-  "_used_timezone": {"used": "Asia/Tbilisi", "source": "env:MCP_TICKTICK_TIMEZONE"}
-}
-```
-
-`source` is `param` when the caller passed `timeZone` explicitly, or
-`env:MCP_TICKTICK_TIMEZONE` when the env fallback was used. The agent can
-read this back, verify, and correct on the next call.
-
-The `ticktick_write` help text leads with a banner showing the current
-fallback value so first-time callers see the silent default before they
-need it.
+When a task date carries a time of day (`YYYY-MM-DDTHH:MM[:SS]`) the wrapper
+needs an IANA timezone to normalize it, and `GetToday` needs one to compute
+day boundaries. There is exactly one source: the `timeZone` parameter of
+the call. There is no environment or system fallback - a missing zone is
+an error, so every applied zone is an explicit decision by the caller.
+Date-only values (`YYYY-MM-DD`) are all-day and need no zone. Manual UTC
+offsets (`+0300`, `Z`) are rejected - pass local time plus `timeZone`.
 
 ### `isAllDay` and reminder triggers
 

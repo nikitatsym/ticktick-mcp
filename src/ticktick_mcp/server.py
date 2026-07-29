@@ -28,7 +28,6 @@ from pydantic import (
 from pydantic_core import PydanticUndefined
 
 from . import tools as _tools_module
-from .config import get_settings, system_timezone
 from .registry import _UNSET, ROOT, Group, OpFn, TaggedFn, _Unset
 
 ToolFn: TypeAlias = Callable[..., Any]
@@ -192,39 +191,12 @@ def _render_ops_block(ops: dict[str, OpFn]) -> str:
     return "\n".join(lines)
 
 
-def _write_group_banner() -> str:
-    """One-line banner for ticktick_write help: current MCP_TICKTICK_TIMEZONE
-    fallback value. Lets the agent learn the silent default before its first
-    write — closes the timezone-fallback failure mode.
-    """
-    tz = get_settings().mcp_ticktick_timezone
-    if tz:
-        return (
-            f"Timezone fallback (MCP_TICKTICK_TIMEZONE): {tz!r}. "
-            "Used when startDate/dueDate has a time and no timeZone param is passed. "
-            "The zone actually used is echoed back as _used_timezone in write results."
-        )
-    sys_tz = system_timezone()
-    hint = (
-        f" System timezone is {sys_tz!r} — likely the right answer, but confirm with the user."
-        if sys_tz
-        else " System timezone could not be detected — ask the user."
-    )
-    return (
-        "Timezone fallback (MCP_TICKTICK_TIMEZONE): (unset — timeZone parameter is "
-        "required when startDate/dueDate has a time)."
-        + hint
-    )
-
-
 def _build_help(group_name: str, search: str | None = None) -> str:
     """Per-op signature with types, docstring body, and per-param description bullets."""
     ops = _group_ops[group_name]
     header_suffix = (
         " Call operation='schema', params={'op': 'OpName'} for the full JSON Schema."
     )
-
-    banner = _write_group_banner() + "\n" if group_name == "ticktick_write" else ""
 
     if search:
         s = search.lower()
@@ -263,10 +235,10 @@ def _build_help(group_name: str, search: str | None = None) -> str:
                 f"{g}: {', '.join(sorted(names))}"
                 for g, names in sorted(elsewhere.items())
             )
-        return f"{banner}{header}\n{body}"
+        return f"{header}\n{body}"
 
     header = f"{len(ops)} operations available.{header_suffix}"
-    return f"{banner}{header}\n{_render_ops_block(ops)}"
+    return f"{header}\n{_render_ops_block(ops)}"
 
 
 def _build_schema(group_name: str, op_name: str | None) -> dict[str, Any]:

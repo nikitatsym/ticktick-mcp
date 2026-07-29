@@ -76,9 +76,3 @@ class ProjectDataDict(TypedDict, total=False):
     project: NotRequired[ProjectDict]
     tasks: NotRequired[list[TaskDict]]
     columns: NotRequired[list[dict[str, object]]]
-
-
-class TzMeta(TypedDict):
-    """Wrapper metadata describing the timezone actually used for a write op."""
-    used: str
-    source: str

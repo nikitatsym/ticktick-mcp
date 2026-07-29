@@ -1,4 +1,4 @@
-"""Help text v2.5: per-param bullets, `?` markers, timezone banner, cross-group hints."""
+"""Help text v2.5: per-param bullets, `?` markers, cross-group hints."""
 
 import pytest
 
@@ -24,8 +24,8 @@ def test_help_per_param_description_bullets() -> None:
     text = _build_help("ticktick_write")
     # CreateTask brief field has a description set
     assert "brief: One-liner stored as <brief>summary</brief>" in text
-    # CreateTask timeZone description names the fallback explicitly
-    assert "timeZone: IANA name" in text
+    # CreateTask timeZone description states when the zone is required
+    assert "timeZone: Required when startDate/dueDate has a time of day." in text
 
 
 def test_help_pointer_to_schema() -> None:
@@ -33,46 +33,15 @@ def test_help_pointer_to_schema() -> None:
     assert "operation='schema'" in text
 
 
-def test_help_write_banner_unset(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("MCP_TICKTICK_TIMEZONE", raising=False)
+def test_help_write_has_no_timezone_banner() -> None:
     text = _build_help("ticktick_write")
-    assert "Timezone fallback (MCP_TICKTICK_TIMEZONE):" in text
-    assert "unset" in text
-    assert "timeZone parameter is required" in text
-
-
-def test_help_write_banner_set(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MCP_TICKTICK_TIMEZONE", "Asia/Tbilisi")
-    text = _build_help("ticktick_write")
-    assert "Asia/Tbilisi" in text
-    assert "_used_timezone" in text
-
-
-def test_help_write_banner_unset_includes_system_tz_hint(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("MCP_TICKTICK_TIMEZONE", raising=False)
-    monkeypatch.setattr("ticktick_mcp.server.system_timezone", lambda: "Europe/Berlin")
-    text = _build_help("ticktick_write")
-    assert "'Europe/Berlin'" in text
-    assert "confirm with the user" in text
-
-
-def test_help_write_banner_unset_no_system_tz(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("MCP_TICKTICK_TIMEZONE", raising=False)
-    monkeypatch.setattr("ticktick_mcp.server.system_timezone", lambda: None)
-    text = _build_help("ticktick_write")
-    assert "could not be detected" in text
-
-
-def test_help_write_banner_set_no_system_hint(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MCP_TICKTICK_TIMEZONE", "Asia/Tbilisi")
-    monkeypatch.setattr("ticktick_mcp.server.system_timezone", lambda: "Europe/Berlin")
-    text = _build_help("ticktick_write")
+    assert "Timezone fallback" not in text
     assert "System timezone" not in text
 
 
-def test_help_read_no_banner() -> None:
-    text = _build_help("ticktick_read")
-    assert "Timezone fallback" not in text
+def test_help_write_timezone_bullet_denies_fallback() -> None:
+    text = _build_help("ticktick_write")
+    assert "No fallback of any kind" in text
 
 
 def test_help_search_filters() -> None:

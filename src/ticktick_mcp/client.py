@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -152,10 +153,11 @@ class TickTickClient:
             where = f" on task {task_id}" if task_id else ""
             raise ValueError(f"unparseable TickTick date {date_str!r}{where}") from e
 
-    def get_today_tasks(self) -> list[TaskDict]:
-        """All uncompleted tasks due today or earlier (overdue)."""
-        now = datetime.now(timezone.utc)
+    def get_today_tasks(self, tz: ZoneInfo) -> list[TaskDict]:
+        """All uncompleted tasks due today in `tz`, or earlier (overdue)."""
+        now = datetime.now(tz)
         end_of_today = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        today = now.date()
 
         projects = self.list_projects()
         inbox_id = self.get_inbox_id()
@@ -178,7 +180,15 @@ class TickTickClient:
                 if task.get("status", 0) == 2:
                     continue
                 due = self._parse_date(task.get("dueDate"), tid)
-                if due and due <= end_of_today:
+                if due is None:
+                    continue
+                if task.get("isAllDay"):
+                    # All-day dates are pinned to a nominal midnight, so they compare by
+                    # literal calendar date, not by instant - an instant compare pulls
+                    # tomorrow's all-day tasks into "today" in negative-offset zones.
+                    if due.date() <= today:
+                        tasks.append(task)
+                elif due <= end_of_today:
                     tasks.append(task)
 
         tasks.sort(key=lambda t: t.get("dueDate") or "")

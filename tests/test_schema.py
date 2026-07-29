@@ -24,9 +24,9 @@ class TestCreateTaskSchema:
     def test_brief_field_optional_in_schema(self) -> None:
         assert "brief" not in self.schema["required"]
 
-    def test_timezone_field_documents_fallback(self) -> None:
+    def test_timezone_field_documents_no_fallback(self) -> None:
         tz = self.schema["properties"]["timeZone"]
-        assert "MCP_TICKTICK_TIMEZONE" in tz["description"]
+        assert "No fallback of any kind" in tz["description"]
 
     def test_isallday_field_documents_failfast(self) -> None:
         iso = self.schema["properties"]["isAllDay"]
