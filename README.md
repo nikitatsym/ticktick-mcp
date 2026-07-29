@@ -13,6 +13,7 @@ MCP client.
 - Per-op `operation='schema'` returning a full JSON Schema; `operation='help'` with substring search (`params={'search':'X'}`)
 - Brief enforcement: writes require a `<brief>summary</brief>` tag (or a `brief` parameter that injects it) so list views stay scannable
 - Fail-fast on the API's silent-drop trap: `isAllDay` must be passed explicitly when changing `reminders`/`startDate`/`dueDate`
+- Liveness guard on writes - UpdateTask/CompleteTask/MoveTask refuse a task that is provably in TickTick's trash (writes to trashed tasks silently vanish); completed tasks cannot be verified and pass unchecked
 - Explicit timezone contract - any operation where a zone matters takes an explicit timeZone parameter; no env or system fallback
 - Zero-config install via `uvx`
 

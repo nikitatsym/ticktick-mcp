@@ -16,6 +16,9 @@ from ticktick_mcp.server import _dispatch
 @pytest.fixture()
 def mock_client() -> Iterator[MagicMock]:
     client = MagicMock()
+    # Every UpdateTask starts with the liveness guard; t1 listed as live keeps
+    # the guard off the get_task path these tests assert on.
+    client.get_project_with_data.return_value = {"tasks": [{"id": "t1"}]}
     with patch("ticktick_mcp.tools._get_client", return_value=client):
         yield client
 

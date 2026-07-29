@@ -39,6 +39,30 @@ def _get_client() -> TickTickClient:
     return _client
 
 
+def _assert_live(project_id: str, task_id: str) -> None:
+    """Refuse writes to tasks that are provably in trash.
+
+    TickTick serves trashed tasks on the direct GET path with bodies
+    identical to live ones and silently accepts writes to them. The project
+    listing contains only live uncompleted tasks, so an uncompleted task
+    missing from it can only be trashed. Completed tasks are absent from
+    the listing too and expose no trash signal at all - a status=2 body
+    passes unverified.
+    """
+    data = _get_client().get_project_with_data(project_id)
+    live = {t.get("id") for t in data.get("tasks") or []}
+    if task_id in live:
+        return
+    task = _get_client().get_task(project_id, task_id)
+    if task.get("status") != 2:
+        raise ValueError(
+            f"Task {task_id} is not live in project {project_id}: it is in "
+            "trash (deleted, or moved to another project). Writes to "
+            "trashed tasks vanish silently. Refresh ids with "
+            "GetProjectWithData or GetToday."
+        )
+
+
 # ── Groups ───────────────────────────────────────────────────────────────────
 
 _TIMEZONE_DESC = (
@@ -154,7 +178,12 @@ def get_task(
     projectId: Annotated[str, Field(description="Project ID — Inbox tasks use the inbox id from GetInboxId.")],
     taskId: Annotated[str, Field(description="Task ID.")],
 ) -> TaskDict:
-    """Get a specific task by project ID and task ID."""
+    """Get a specific task by project ID and task ID.
+
+    A successful GetTask does not prove the task is live: TickTick serves
+    trashed tasks on this path with bodies identical to live ones. Listings
+    (GetProjectWithData, GetToday, GetInbox) contain only live tasks.
+    """
     return _get_client().get_task(projectId, taskId)
 
 
@@ -257,6 +286,7 @@ def update_task(
 
     Time-of-day dates (HH:MM) require timeZone; date-only dates are all-day and need no zone.
     """
+    _assert_live(projectId, taskId)
     params = dict(locals())
 
     # Brief-only update: fetch existing content so _prepare_task's brief
@@ -292,7 +322,7 @@ def move_task(
     items survive. The copy is created and verified in the target project
     before the original is deleted, so a failure cannot lose the task; if
     deleting the original fails, both copies exist and the error names the
-    new id.
+    new id. The source must be live: moving a trashed task would resurrect it.
     """
     if fromProjectId == toProjectId:
         raise ValueError(
@@ -300,6 +330,7 @@ def move_task(
             "already in that project. No copy was made."
         )
 
+    _assert_live(fromProjectId, taskId)
     src: dict[str, Any] = dict(_get_client().get_task(fromProjectId, taskId))
     # Bypass _prepare_task: GetTask returns wire-format dates whose offsets _normalize_date rejects, and brief validation must not block moving existing data.
     payload = {k: src[k] for k in _TASK_API_FIELDS if src.get(k) is not None}
@@ -330,6 +361,7 @@ def complete_task(
     taskId: Annotated[str, Field(description="Task ID.")],
 ) -> str:
     """Mark a task as completed."""
+    _assert_live(projectId, taskId)
     _get_client().complete_task(projectId, taskId)
     return f"Task {taskId} marked as completed."
 

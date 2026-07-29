@@ -19,6 +19,7 @@ from ticktick_mcp.client import API_BASE, TickTickClient, TickTickError
 Handler = Callable[[httpx.Request], httpx.Response]
 Route = tuple[str, str]
 
+PROJECT_DATA: Route = ("GET", "/open/v1/project/src/data")
 GET_SRC: Route = ("GET", "/open/v1/project/src/task/t1")
 POST_TASK: Route = ("POST", "/open/v1/task")
 DELETE_SRC: Route = ("DELETE", "/open/v1/project/src/task/t1")
@@ -76,6 +77,11 @@ def reply(response: httpx.Response) -> Handler:
     return handler
 
 
+def live_src() -> Handler:
+    """Liveness guard listing: t1 is live in src, so the move proceeds."""
+    return reply(httpx.Response(200, json={"project": {"id": "src"}, "tasks": [{"id": "t1"}]}))
+
+
 def echo_created(project_id: str) -> Handler:
     """POST /task echoing the sent body back with a new id, as TickTick does."""
 
@@ -103,6 +109,7 @@ def methods(api: Api) -> list[str]:
 class TestMoveTaskHappyPath:
     def test_copies_api_fields_then_deletes_original(self, monkeypatch: pytest.MonkeyPatch) -> None:
         api = Api({
+            PROJECT_DATA: live_src(),
             GET_SRC: reply(httpx.Response(200, json=SRC_TASK)),
             POST_TASK: echo_created("dst"),
             DELETE_SRC: reply(httpx.Response(204)),
@@ -111,13 +118,14 @@ class TestMoveTaskHappyPath:
 
         result = tools.move_task(taskId="t1", fromProjectId="src", toProjectId="dst")
 
-        assert api.calls == [GET_SRC, POST_TASK, DELETE_SRC]
-        assert api.bodies[1] == EXPECTED_PAYLOAD
+        assert api.calls == [PROJECT_DATA, GET_SRC, POST_TASK, DELETE_SRC]
+        assert api.bodies[2] == EXPECTED_PAYLOAD
         assert result["id"] == "new1"
         assert result["projectId"] == "dst"
 
     def test_non_api_fields_are_stripped(self, monkeypatch: pytest.MonkeyPatch) -> None:
         api = Api({
+            PROJECT_DATA: live_src(),
             GET_SRC: reply(httpx.Response(200, json=SRC_TASK)),
             POST_TASK: echo_created("dst"),
             DELETE_SRC: reply(httpx.Response(204)),
@@ -126,7 +134,7 @@ class TestMoveTaskHappyPath:
 
         tools.move_task(taskId="t1", fromProjectId="src", toProjectId="dst")
 
-        sent = api.bodies[1]
+        sent = api.bodies[2]
         for key in ("id", "etag", "sortOrder"):
             assert key not in sent
         assert sent["dueDate"] == "2026-03-15T19:00:00.000+0400"
@@ -135,6 +143,7 @@ class TestMoveTaskHappyPath:
 class TestMoveTaskFailures:
     def test_create_failure_leaves_original_alone(self, monkeypatch: pytest.MonkeyPatch) -> None:
         api = Api({
+            PROJECT_DATA: live_src(),
             GET_SRC: reply(httpx.Response(200, json=SRC_TASK)),
             POST_TASK: reply(httpx.Response(500, json={"errorCode": "internal_error"})),
         })
@@ -145,10 +154,11 @@ class TestMoveTaskFailures:
 
         assert excinfo.value.status == 500
         assert "DELETE" not in methods(api)
-        assert api.calls == [GET_SRC, POST_TASK]
+        assert api.calls == [PROJECT_DATA, GET_SRC, POST_TASK]
 
     def test_copy_landed_in_wrong_project(self, monkeypatch: pytest.MonkeyPatch) -> None:
         api = Api({
+            PROJECT_DATA: live_src(),
             GET_SRC: reply(httpx.Response(200, json=SRC_TASK)),
             POST_TASK: echo_created("somewhere-else"),
         })
@@ -161,9 +171,11 @@ class TestMoveTaskFailures:
         assert "new1" in msg
         assert "NOT deleted" in msg
         assert "DELETE" not in methods(api)
+        assert api.calls == [PROJECT_DATA, GET_SRC, POST_TASK]
 
     def test_delete_failure_names_both_copies(self, monkeypatch: pytest.MonkeyPatch) -> None:
         api = Api({
+            PROJECT_DATA: live_src(),
             GET_SRC: reply(httpx.Response(200, json=SRC_TASK)),
             POST_TASK: echo_created("dst"),
             DELETE_SRC: reply(httpx.Response(500, json={"errorCode": "internal_error"})),
@@ -177,7 +189,7 @@ class TestMoveTaskFailures:
         assert "new1" in msg
         assert "t1" in msg
         assert "NOT deleted" in msg
-        assert api.calls == [GET_SRC, POST_TASK, DELETE_SRC]
+        assert api.calls == [PROJECT_DATA, GET_SRC, POST_TASK, DELETE_SRC]
 
     def test_same_project_makes_no_requests(self, monkeypatch: pytest.MonkeyPatch) -> None:
         api = Api({})
@@ -189,11 +201,14 @@ class TestMoveTaskFailures:
         assert api.calls == []
 
     def test_empty_source_body_fails_before_create(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        api = Api({GET_SRC: reply(httpx.Response(200))})
+        api = Api({
+            PROJECT_DATA: live_src(),
+            GET_SRC: reply(httpx.Response(200)),
+        })
         install(monkeypatch, api)
 
         with pytest.raises(TickTickError) as excinfo:
             tools.move_task(taskId="t1", fromProjectId="src", toProjectId="dst")
 
         assert "empty response body" in str(excinfo.value)
-        assert api.calls == [GET_SRC]
+        assert api.calls == [PROJECT_DATA, GET_SRC]

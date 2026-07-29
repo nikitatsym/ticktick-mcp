@@ -259,6 +259,7 @@ def test_create_task_no_brief_no_content_validates(mock_client: MagicMock) -> No
 
 
 def test_update_task(mock_client: MagicMock) -> None:
+    mock_client.get_project_with_data.return_value = {"tasks": [{"id": "t1"}]}
     mock_client.update_task.return_value = {
         "id": "t1", "title": "Updated", "projectId": "p1",
     }
@@ -270,6 +271,7 @@ def test_update_task(mock_client: MagicMock) -> None:
 
 
 def test_complete_task(mock_client: MagicMock) -> None:
+    mock_client.get_project_with_data.return_value = {"tasks": [{"id": "t1"}]}
     result = _dispatch("CompleteTask", "ticktick_write",
                        {"projectId": "p1", "taskId": "t1"})
     assert "completed" in result
