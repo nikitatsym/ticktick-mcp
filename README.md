@@ -7,7 +7,7 @@ MCP client.
 
 ## Features
 
-- **15 operations** covering tasks, projects, and the Inbox
+- **16 operations** covering tasks, projects, and the Inbox
 - **3 risk-graded meta-tools** (`ticktick_read` / `ticktick_write` / `ticktick_delete`) — agents pick a tool surface by side-effect kind
 - Pydantic param validation with `extra='forbid'` — unknown keys, missing required fields, and wrong types fail loudly
 - Per-op `operation='schema'` returning a full JSON Schema; `operation='help'` with substring search (`params={'search':'X'}`)
@@ -59,14 +59,17 @@ Requires [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 ## Tool Groups
 
-All 15 operations are exposed through 3 risk-graded meta-tools — one tool
+All 16 operations are exposed through 3 risk-graded meta-tools — one tool
 surface per scope, dispatched via `operation` + `params`.
 
 | Meta-tool | Scope | Operations |
 |---|---|---|
 | `ticktick_read` | GET, safe / read-only | `GetToday`, `GetInbox`, `GetInboxId`, `ListProjects`, `GetProject`, `GetProjectWithData`, `GetTask` |
-| `ticktick_write` | Create + update | `CreateTask`, `UpdateTask`, `CompleteTask`, `CreateProject`, `UpdateProject` |
+| `ticktick_write` | Create + update | `CreateTask`, `UpdateTask`, `MoveTask`, `CompleteTask`, `CreateProject`, `UpdateProject` |
 | `ticktick_delete` | Destructive | `DeleteTask`, `DeleteProject` |
+
+`MoveTask` moves a task between projects as copy+delete (the API has no move);
+the copy gets a new id, returned in the result.
 
 Each meta-tool takes `operation` (PascalCase op name, or `help` / `schema`)
 plus a `params` dict:

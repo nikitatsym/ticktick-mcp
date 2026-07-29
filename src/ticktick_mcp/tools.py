@@ -17,8 +17,9 @@ from typing import Annotated, Any, cast
 
 from pydantic import Field
 
-from .client import TickTickClient
+from .client import TickTickClient, TickTickError
 from .prepare import (
+    _TASK_API_FIELDS,
     _prepare_project,
     _prepare_task,
     _slim_task,
@@ -280,6 +281,52 @@ def update_task(
     result = _get_client().update_task(taskId, task)
     _verify_response(task, result)
     return _attach_tz(dict(result), tz_meta)
+
+
+@_op(ticktick_write)
+def move_task(
+    taskId: Annotated[str, Field(description="Task ID to move.")],
+    fromProjectId: Annotated[str, Field(description="Project the task is in now (Inbox tasks: the inbox id).")],
+    toProjectId: Annotated[str, Field(description="Target project ID.")],
+) -> dict[str, Any]:
+    """Move a task to another project via copy+delete (the TickTick API has no move).
+
+    The task gets a NEW id, returned in the result. Only fields readable via
+    GetTask survive the move: comments, attachments, sort order, repeat
+    progress, completed status, and parent/child links are lost. Checklist
+    items survive. The copy is created and verified in the target project
+    before the original is deleted, so a failure cannot lose the task; if
+    deleting the original fails, both copies exist and the error names the
+    new id.
+    """
+    if fromProjectId == toProjectId:
+        raise ValueError(
+            f"fromProjectId and toProjectId are both {toProjectId!r}: the task is "
+            "already in that project. No copy was made."
+        )
+
+    src: dict[str, Any] = dict(_get_client().get_task(fromProjectId, taskId))
+    # Bypass _prepare_task: GetTask returns wire-format dates whose offsets _normalize_date rejects, and brief validation must not block moving existing data.
+    payload = {k: src[k] for k in _TASK_API_FIELDS if src.get(k) is not None}
+    payload["projectId"] = toProjectId
+
+    created = _get_client().create_task(payload)
+    _verify_response(payload, created)
+    if created.get("projectId") != toProjectId:
+        raise ValueError(
+            f"copy {created.get('id')} landed in project {created.get('projectId')!r} "
+            f"instead of {toProjectId!r}; the original {taskId} was NOT deleted."
+        )
+
+    try:
+        _get_client().delete_task(fromProjectId, taskId)
+    except TickTickError as e:
+        raise TickTickError(
+            e.status, e.method, e.path,
+            f"copy {created['id']} already created in {toProjectId}; "
+            f"original {taskId} was NOT deleted: {e.body}",
+        ) from e
+    return dict(created)
 
 
 @_op(ticktick_write)

@@ -40,7 +40,7 @@ def test_read_count() -> None:
 
 
 def test_write_count() -> None:
-    assert _count_by_group(ticktick_write) == 5
+    assert _count_by_group(ticktick_write) == 6
 
 
 def test_delete_count() -> None:
@@ -52,7 +52,7 @@ def test_total_operations() -> None:
         1 for _, fn in inspect.getmembers(_tools_module, inspect.isfunction)
         if hasattr(fn, "_mcp_group")
     )
-    assert total == 15
+    assert total == 16
 
 
 # ── _to_pascal ───────────────────────────────────────────────────────────────
@@ -80,8 +80,8 @@ def test_help_read() -> None:
 
 def test_help_write() -> None:
     text = _build_help("ticktick_write")
-    assert "5 operations available." in text
-    for op in ("CreateTask", "UpdateTask", "CompleteTask", "CreateProject", "UpdateProject"):
+    assert "6 operations available." in text
+    for op in ("CreateTask", "UpdateTask", "MoveTask", "CompleteTask", "CreateProject", "UpdateProject"):
         assert op in text
 
 

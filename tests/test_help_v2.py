@@ -7,9 +7,9 @@ from ticktick_mcp.server import _build_help
 
 def test_help_lists_all_write_ops() -> None:
     text = _build_help("ticktick_write")
-    for op in ("CreateTask", "UpdateTask", "CompleteTask", "CreateProject", "UpdateProject"):
+    for op in ("CreateTask", "UpdateTask", "MoveTask", "CompleteTask", "CreateProject", "UpdateProject"):
         assert op in text
-    assert "5 operations available." in text
+    assert "6 operations available." in text
 
 
 def test_help_lists_all_read_ops() -> None:
