@@ -24,7 +24,7 @@ from .prepare import (
     _slim_task,
     _verify_response,
 )
-from .registry import ROOT, Group, _UNSET, _op
+from .registry import _UNSET, ROOT, Group, _op
 from .types import ProjectDataDict, ProjectDict, SlimTaskDict, TaskDict
 
 _client: TickTickClient | None = None
@@ -83,8 +83,10 @@ def ticktick_version() -> dict[str, Any]:
     try:
         _get_client().list_projects()
         service: dict[str, Any] = {"status": "ok"}
-    except Exception:
-        service = {"status": "error"}
+    except Exception as e:  # noqa: BLE001 - reporting reachability is this tool's whole contract
+        # Without the detail, "error" cannot distinguish a missing token from a
+        # network failure from a TickTick outage.
+        service = {"status": "error", "error": f"{type(e).__name__}: {e}"}
     return {"mcp": version("ticktick-mcp"), "service": service}
 
 

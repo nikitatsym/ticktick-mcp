@@ -1,7 +1,8 @@
 """Tests for input validation, normalization, and response verification."""
 
-import pytest
 from zoneinfo import ZoneInfo
+
+import pytest
 
 from ticktick_mcp.prepare import (
     _normalize_date,
@@ -12,7 +13,6 @@ from ticktick_mcp.prepare import (
     _validate_timezone,
     _verify_response,
 )
-
 
 # ── _validate_timezone ───────────────────────────────────────────────────────
 
@@ -330,10 +330,11 @@ class TestPrepareProject:
 
 class TestRegistration:
     def test_import_succeeds(self) -> None:
-        from ticktick_mcp.server import mcp  # noqa: F401
+        from ticktick_mcp.server import mcp
 
     def test_all_decorated_functions_have_docstrings(self) -> None:
         import inspect
+
         from ticktick_mcp import tools as tools_module
 
         for name, fn in inspect.getmembers(tools_module, inspect.isfunction):

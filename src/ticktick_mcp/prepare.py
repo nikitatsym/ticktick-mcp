@@ -203,7 +203,7 @@ def _validate_reminders(triggers: list[str], is_all_day: bool) -> None:
     """
     for t in triggers:
         if not isinstance(t, str):
-            raise ValueError(
+            raise TypeError(
                 f"reminders must be a list of iCal TRIGGER strings. Got: {t!r}"
             )
         if not _TRIGGER_RE.match(t) or not _TRIGGER_HAS_DIGIT_RE.search(t):
@@ -309,22 +309,23 @@ def _prepare_task(
 
     # 5. Fail-fast on UpdateTask: changing reminders/startDate/dueDate without
     #    a fresh isAllDay drops it silently on the wire. Trigger validation
-    #    requires a known mode anyway, so this check belongs here.
-    if is_update and not isAllDay_explicit and any(
-        f in params for f in _REMINDER_TRIGGERING_FIELDS
+    #    requires a known mode anyway, so this check belongs here. The
+    #    `"isAllDay" not in params` term also excludes step 4's date-only
+    #    inference - the only path that could have resolved a mode implicitly.
+    if (
+        is_update
+        and not isAllDay_explicit
+        and "isAllDay" not in params
+        and any(f in params for f in _REMINDER_TRIGGERING_FIELDS)
     ):
-        # date-only inference is the only path that could've set isAllDay
-        # implicitly above; if even that didn't happen, we have no resolved
-        # mode and must refuse.
-        if "isAllDay" not in params:
-            raise ValueError(
-                "isAllDay must be passed explicitly when changing reminders, "
-                "startDate, or dueDate on UpdateTask — the API silently drops "
-                "it otherwise. Use isAllDay=true for date-only/whole-day tasks "
-                "(reminder trigger format: PT9H = 9am offset from midnight), "
-                "or isAllDay=false for timed tasks (trigger format: -PT5M = "
-                "5min before event)."
-            )
+        raise ValueError(
+            "isAllDay must be passed explicitly when changing reminders, "
+            "startDate, or dueDate on UpdateTask — the API silently drops "
+            "it otherwise. Use isAllDay=true for date-only/whole-day tasks "
+            "(reminder trigger format: PT9H = 9am offset from midnight), "
+            "or isAllDay=false for timed tasks (trigger format: -PT5M = "
+            "5min before event)."
+        )
 
     # 6. CreateTask with reminders: if isAllDay can be inferred (date-only OR
     #    time-of-day on startDate/dueDate), set it explicitly so the API
@@ -356,12 +357,11 @@ def _prepare_task(
     # 8. CreateTask requires a title. UpdateTask requires projectId + taskId
     #    (the latter from tools.py — UpdateTask's signature already enforces
     #    them as required positional args; here we just guard CreateTask).
-    if not is_update:
-        if not params.get("title"):
-            raise ValueError(
-                "Required: 'title'. "
-                "Call operation='schema', params={'op': 'CreateTask'} for the full spec."
-            )
+    if not is_update and not params.get("title"):
+        raise ValueError(
+            "Required: 'title'. "
+            "Call operation='schema', params={'op': 'CreateTask'} for the full spec."
+        )
 
     # 9. Build the wire payload — _UNSET is gone, None is still dropped,
     #    unknown fields silently ignored (forward-compat with new API fields).
@@ -393,12 +393,11 @@ def _prepare_project(
         _validate_enum(params["viewMode"], "viewMode", {"list", "kanban", "timeline"})
     if params.get("kind") is not None:
         _validate_enum(params["kind"], "kind", {"TASK", "NOTE"})
-    if not is_update:
-        if not params.get("name"):
-            raise ValueError(
-                "Required: 'name'. "
-                "Call operation='schema', params={'op': 'CreateProject'} for the full spec."
-            )
+    if not is_update and not params.get("name"):
+        raise ValueError(
+            "Required: 'name'. "
+            "Call operation='schema', params={'op': 'CreateProject'} for the full spec."
+        )
     proj: dict[str, Any] = {}
     for key in _PROJECT_API_FIELDS:
         if params.get(key) is not None:

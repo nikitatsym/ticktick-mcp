@@ -15,10 +15,10 @@ All env vars currently read elsewhere flow through `get_settings()`:
 from __future__ import annotations
 
 from functools import lru_cache
+from zoneinfo import ZoneInfoNotFoundError
 
 import tzlocal
 from pydantic_settings import BaseSettings
-from zoneinfo import ZoneInfoNotFoundError
 
 
 class Settings(BaseSettings):

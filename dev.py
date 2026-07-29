@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent
 
 def _run(cmd: list[str]) -> int:
     print(f":: {' '.join(cmd)}")
-    return subprocess.run(cmd, cwd=ROOT).returncode
+    return subprocess.run(cmd, cwd=ROOT, check=False).returncode
 
 
 def lint() -> int:

@@ -5,10 +5,13 @@
 """
 
 import json
+from typing import cast
 
 from ticktick_mcp import tools as _tools_module
-from ticktick_mcp.registry import _UNSET, _Unset
+from ticktick_mcp.registry import _UNSET, OpFn, _Unset
 from ticktick_mcp.server import _build_help, _build_schema
+
+_create_task = cast(OpFn, _tools_module.create_task)
 
 
 def test_unset_singleton() -> None:
@@ -21,7 +24,7 @@ def test_unset_is_falsy() -> None:
 
 def test_unset_not_in_dispatched_kwargs() -> None:
     """model.model_validate({}) → model_dump(exclude_unset=True) drops the sentinel."""
-    model = getattr(_tools_module.create_task, "_params_model")
+    model = _create_task._params_model
     validated = model.model_validate({"title": "T", "brief": "B"})
     dumped = validated.model_dump(exclude_unset=True)
     assert "title" in dumped

@@ -50,5 +50,5 @@ class TestFormatErrors:
             _validate_reminders(["TRIGGER:P"], is_all_day=True)
 
     def test_non_string_raises(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             _validate_reminders([42], is_all_day=True)  # type: ignore[list-item]

@@ -13,7 +13,8 @@ from __future__ import annotations
 import inspect
 import types
 import typing
-from typing import Any, Callable, TypeAlias, cast
+from collections.abc import Callable
+from typing import Any, TypeAlias, cast
 
 from mcp.server.mcpserver import MCPServer
 from pydantic import (
@@ -28,7 +29,7 @@ from pydantic_core import PydanticUndefined
 
 from . import tools as _tools_module
 from .config import get_settings, system_timezone
-from .registry import _UNSET, ROOT, Group, _Unset
+from .registry import _UNSET, ROOT, Group, OpFn, TaggedFn, _Unset
 
 ToolFn: TypeAlias = Callable[..., Any]
 ParamsModel: TypeAlias = type[BaseModel]
@@ -44,7 +45,7 @@ def _to_pascal(name: str) -> str:
     return "".join(w.capitalize() for w in name.split("_"))
 
 
-def _build_params_model(fn: ToolFn) -> ParamsModel:
+def _build_params_model(fn: TaggedFn) -> ParamsModel:
     """Build a Pydantic model from a function's signature.
 
     Parameters without a default become required fields. Defaults of `_UNSET`
@@ -105,9 +106,9 @@ def _format_validation_error(err: ValidationError, op_name: str) -> str:
     return "\n".join(lines)
 
 
-def _coerce_call(fn: ToolFn, params: dict[str, Any], op_name: str) -> Any:
+def _coerce_call(fn: OpFn, params: dict[str, Any], op_name: str) -> Any:
     """Validate params via the tool's Pydantic model, then call fn."""
-    model: ParamsModel = getattr(fn, "_params_model")
+    model: ParamsModel = fn._params_model
     try:
         validated = model.model_validate(params)
     except ValidationError as e:
@@ -163,18 +164,18 @@ def _format_param_for_help(name: str, field: Any) -> str:
 
 # ── Module-level state (populated by _register_tools) ────────────────────────
 
-_group_ops: dict[str, dict[str, ToolFn]] = {}
+_group_ops: dict[str, dict[str, OpFn]] = {}
 _all_grouped: dict[str, str] = {}
 
 
-def _render_ops_block(ops: dict[str, ToolFn]) -> str:
+def _render_ops_block(ops: dict[str, OpFn]) -> str:
     """Render the per-op signature block: signature line + indented body +
     per-param `name: description` bullets for every Pydantic field whose
     `Field(description=...)` is set.
     """
     lines: list[str] = []
     for pascal_name, fn in ops.items():
-        model: ParamsModel = getattr(fn, "_params_model")
+        model: ParamsModel = fn._params_model
         parts = [
             _format_param_for_help(n, f)
             for n, f in model.model_fields.items()
@@ -228,7 +229,7 @@ def _build_help(group_name: str, search: str | None = None) -> str:
     if search:
         s = search.lower()
 
-        def _hit(name: str, fn: ToolFn) -> bool:
+        def _hit(name: str, fn: OpFn) -> bool:
             return (
                 s in name.lower()
                 or s in fn.__name__.lower()
@@ -282,7 +283,7 @@ def _build_schema(group_name: str, op_name: str | None) -> dict[str, Any]:
             f"Available: {sorted(ops)}"
         )
     fn = ops[op_name]
-    model: ParamsModel = getattr(fn, "_params_model")
+    model: ParamsModel = fn._params_model
     schema: dict[str, Any] = model.model_json_schema()
     doc = inspect.getdoc(fn) or ""
     if doc:
@@ -314,15 +315,17 @@ def _dispatch(operation: str, group_name: str, params: dict[str, Any]) -> Any:
 
 def _register_tools() -> None:
     """Discover @_op-decorated functions, build Pydantic models, register MCP tools."""
-    groups: dict[str, tuple[Group, dict[str, ToolFn]]] = {}
+    groups: dict[str, tuple[Group, dict[str, OpFn]]] = {}
 
-    for name, fn in inspect.getmembers(_tools_module, inspect.isfunction):
-        group = getattr(fn, "_mcp_group", None)
-        if group is None:
+    for name, raw_fn in inspect.getmembers(_tools_module, inspect.isfunction):
+        if not hasattr(raw_fn, "_mcp_group"):
             continue
-        setattr(fn, "_params_model", _build_params_model(fn))
+        # hasattr just confirmed the @_op tag; the write below makes the rest true.
+        fn = cast(OpFn, raw_fn)
+        group: Group = fn._mcp_group
+        fn._params_model = _build_params_model(fn)
         if group is ROOT:
-            mcp.tool()(fn)
+            mcp.tool()(raw_fn)
         else:
             if group.name not in groups:
                 groups[group.name] = (group, {})

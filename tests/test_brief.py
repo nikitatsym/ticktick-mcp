@@ -2,9 +2,13 @@
 
 import pytest
 
-from ticktick_mcp.prepare import _extract_brief, _inject_brief, _slim_task, _validate_brief
+from ticktick_mcp.prepare import (
+    _extract_brief,
+    _inject_brief,
+    _slim_task,
+    _validate_brief,
+)
 from ticktick_mcp.types import TaskDict
-
 
 # ── _extract_brief ────────────────────────────────────────────────────────────
 

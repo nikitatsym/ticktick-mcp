@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, cast
 
@@ -11,6 +12,8 @@ from .auth import get_access_token
 from .types import ProjectDataDict, ProjectDict, TaskDict
 
 API_BASE = "https://api.ticktick.com/open/v1"
+
+_log = logging.getLogger("ticktick_mcp.client")
 
 
 class TickTickError(Exception):
@@ -47,7 +50,9 @@ class TickTickClient:
         if r.status_code >= 400:
             try:
                 body: Any = r.json()
-            except Exception:
+            # r.json() decodes bytes, so a non-UTF-8 error page raises
+            # UnicodeDecodeError, not JSONDecodeError. ValueError covers both.
+            except ValueError:
                 body = r.text
             raise TickTickError(r.status_code, method, path, body)
         if r.status_code == 204 or not r.content:
@@ -61,10 +66,14 @@ class TickTickClient:
             return self._inbox_id
         temp_task = self.create_task({"title": "__ticktick_mcp_inbox_probe__"})
         self._inbox_id = temp_task["projectId"]
+        temp_id = temp_task["id"]
         try:
-            self.delete_task(self._inbox_id, temp_task["id"])
-        except Exception:
-            pass
+            self.delete_task(self._inbox_id, temp_id)
+        except Exception:  # noqa: BLE001 - the id is already in hand; cleanup must not cost the caller its answer
+            _log.warning(
+                "inbox probe task %s left behind in project %s",
+                temp_id, self._inbox_id, exc_info=True,
+            )
         return self._inbox_id
 
     def get_inbox_with_data(self) -> ProjectDataDict:
@@ -139,10 +148,10 @@ class TickTickClient:
         tasks: list[TaskDict] = []
         seen: set[str] = set()
         for pid in project_ids:
-            try:
-                data = self.get_project_with_data(pid)
-            except Exception:
-                continue
+            # No skip-on-error: this returns "all tasks due today", so a project
+            # that fails to load must fail the call, not silently shrink it.
+            # TickTickError names the offending /project/{pid}/data path.
+            data = self.get_project_with_data(pid)
             for task in data.get("tasks") or []:
                 tid = task.get("id") or ""
                 if not tid or tid in seen:

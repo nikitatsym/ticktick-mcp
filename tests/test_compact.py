@@ -13,15 +13,17 @@ Differences from v1 tests:
 
 import inspect
 from collections.abc import Iterator
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from ticktick_mcp import tools as _tools_module
-from ticktick_mcp.registry import Group
-from ticktick_mcp.tools import ticktick_read, ticktick_write, ticktick_delete
+from ticktick_mcp.registry import Group, OpFn
 from ticktick_mcp.server import _build_help, _dispatch, _group_ops, _to_pascal
+from ticktick_mcp.tools import ticktick_delete, ticktick_read, ticktick_write
 
+_create_task = cast(OpFn, _tools_module.create_task)
 
 # ── Registry validation ─────────────────────────────────────────────────────
 
@@ -132,19 +134,19 @@ def test_unknown_operation() -> None:
 
 
 def test_pydantic_bool_coercion_string_true() -> None:
-    model = getattr(_tools_module.create_task, "_params_model")
+    model = _create_task._params_model
     v = model.model_validate({"title": "T", "brief": "B", "isAllDay": "true"})
     assert v.isAllDay is True
 
 
 def test_pydantic_bool_coercion_string_false() -> None:
-    model = getattr(_tools_module.create_task, "_params_model")
+    model = _create_task._params_model
     v = model.model_validate({"title": "T", "brief": "B", "isAllDay": "false"})
     assert v.isAllDay is False
 
 
 def test_pydantic_bool_coercion_yes_no() -> None:
-    model = getattr(_tools_module.create_task, "_params_model")
+    model = _create_task._params_model
     v = model.model_validate({"title": "T", "brief": "B", "isAllDay": "yes"})
     assert v.isAllDay is True
     v2 = model.model_validate({"title": "T", "brief": "B", "isAllDay": "no"})
