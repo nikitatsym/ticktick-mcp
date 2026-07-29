@@ -15,7 +15,7 @@ import types
 import typing
 from typing import Any, Callable, TypeAlias, cast
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -33,7 +33,7 @@ from .registry import _UNSET, ROOT, Group, _Unset
 ToolFn: TypeAlias = Callable[..., Any]
 ParamsModel: TypeAlias = type[BaseModel]
 
-mcp = FastMCP("ticktick")
+mcp = MCPServer("ticktick")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
