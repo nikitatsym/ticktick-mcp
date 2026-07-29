@@ -17,7 +17,7 @@ _log = logging.getLogger("ticktick_mcp.client")
 
 
 class TickTickError(Exception):
-    """Raised on 4xx/5xx responses from the TickTick Open API.
+    """Raised on 4xx/5xx responses from the TickTick Open API, and on empty 2xx bodies where JSON was expected.
 
     Carries enough context to diagnose the failure without re-issuing the
     request: HTTP status, method, path (after rewrites), and the decoded
@@ -30,6 +30,18 @@ class TickTickError(Exception):
         self.path = path
         self.body = body
         super().__init__(f"TickTick API {status} {method} {path}: {body}")
+
+
+def _check_error(r: httpx.Response, method: str, path: str) -> None:
+    if r.status_code < 400:
+        return
+    try:
+        body: Any = r.json()
+    # r.json() decodes bytes, so a non-UTF-8 error page raises
+    # UnicodeDecodeError, not JSONDecodeError. ValueError covers both.
+    except ValueError:
+        body = r.text
+    raise TickTickError(r.status_code, method, path, body)
 
 
 class TickTickClient:
@@ -47,17 +59,17 @@ class TickTickClient:
 
     def _request(self, method: str, path: str, json: Any = None) -> Any:
         r = self._http.request(method, path, json=json)
-        if r.status_code >= 400:
-            try:
-                body: Any = r.json()
-            # r.json() decodes bytes, so a non-UTF-8 error page raises
-            # UnicodeDecodeError, not JSONDecodeError. ValueError covers both.
-            except ValueError:
-                body = r.text
-            raise TickTickError(r.status_code, method, path, body)
+        _check_error(r, method, path)
         if r.status_code == 204 or not r.content:
-            return None
+            raise TickTickError(
+                r.status_code, method, path, "empty response body (expected JSON)"
+            )
         return r.json()
+
+    def _request_no_content(self, method: str, path: str) -> None:
+        """Endpoints whose success shape is 204 or an empty 2xx body; any body is ignored."""
+        r = self._http.request(method, path)
+        _check_error(r, method, path)
 
     # ── Inbox ───────────────────────────────────────────
 
@@ -83,7 +95,7 @@ class TickTickClient:
     # ── Projects ──────────────────────────────────────────
 
     def list_projects(self) -> list[ProjectDict]:
-        return cast("list[ProjectDict]", self._request("GET", "/project") or [])
+        return cast("list[ProjectDict]", self._request("GET", "/project"))
 
     def get_project(self, project_id: str) -> ProjectDict:
         return cast(ProjectDict, self._request("GET", f"/project/{project_id}"))
@@ -102,7 +114,7 @@ class TickTickClient:
         return cast(ProjectDict, self._request("POST", f"/project/{project_id}", updates))
 
     def delete_project(self, project_id: str) -> None:
-        self._request("DELETE", f"/project/{project_id}")
+        self._request_no_content("DELETE", f"/project/{project_id}")
 
     # ── Tasks ─────────────────────────────────────────────
 
@@ -116,10 +128,10 @@ class TickTickClient:
         return cast(TaskDict, self._request("POST", f"/task/{task_id}", updates))
 
     def complete_task(self, project_id: str, task_id: str) -> None:
-        self._request("POST", f"/project/{project_id}/task/{task_id}/complete")
+        self._request_no_content("POST", f"/project/{project_id}/task/{task_id}/complete")
 
     def delete_task(self, project_id: str, task_id: str) -> None:
-        self._request("DELETE", f"/project/{project_id}/task/{task_id}")
+        self._request_no_content("DELETE", f"/project/{project_id}/task/{task_id}")
 
     # ── Today ─────────────────────────────────────────────
 

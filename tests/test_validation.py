@@ -157,11 +157,13 @@ class TestVerifyResponse:
     def test_desc_skipped(self) -> None:
         _verify_response({"title": "T", "desc": "d"}, {"title": "T"})
 
-    def test_non_dict_response_ignored(self) -> None:
-        _verify_response({"title": "T"}, "some string")
+    def test_non_dict_response_raises(self) -> None:
+        with pytest.raises(ValueError, match="cannot verify"):
+            _verify_response({"title": "T"}, "some string")
 
-    def test_none_response_ignored(self) -> None:
-        _verify_response({"title": "T"}, None)
+    def test_none_response_raises(self) -> None:
+        with pytest.raises(ValueError, match="cannot verify"):
+            _verify_response({"title": "T"}, None)
 
     def test_extra_fields_in_response_ok(self) -> None:
         _verify_response({"title": "T"}, {"title": "T", "id": "x", "status": 0})

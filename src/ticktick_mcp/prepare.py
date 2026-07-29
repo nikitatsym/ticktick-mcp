@@ -406,13 +406,17 @@ def _prepare_project(
 
 
 def _verify_response(sent: dict[str, Any], received: Any) -> None:
-    """Check that all keys we sent are present in the API response."""
-    if not isinstance(received, dict):
-        return
+    """Check that all keys we sent are present in the API response; raises if it is not a dict."""
+    resource = received if isinstance(received, dict) else None
+    if resource is None:
+        raise ValueError(
+            f"API returned {type(received).__name__} instead of the updated resource; "
+            "cannot verify the write was applied."
+        )
     for key in sent:
         if key in _SKIP_VERIFY:
             continue
-        if key not in received:
+        if key not in resource:
             raise ValueError(
                 f"API silently dropped '{key}'. The resource was created/updated "
                 "but the field was ignored. Check the value format."
