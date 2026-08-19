@@ -4,6 +4,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from ticktick_mcp import server as server_module
+from ticktick_mcp import tools as tools_module
 from ticktick_mcp.prepare import (
     _normalize_date,
     _prepare_project,
@@ -13,6 +15,7 @@ from ticktick_mcp.prepare import (
     _validate_timezone,
     _verify_response,
 )
+from ticktick_mcp.registry import Group
 
 # ── _validate_timezone ───────────────────────────────────────────────────────
 
@@ -354,3 +357,60 @@ class TestRegistration:
         }
         for group in groups:
             assert group.doc, f"group {group.name!r} has no doc"
+
+
+# ── Group doc templating ─────────────────────────────────────────────────────
+
+
+class TestGroupDocTemplate:
+    def test_group_docs_resolve_operation_placeholders(self) -> None:
+        groups = [
+            obj
+            for obj in vars(tools_module).values()
+            if isinstance(obj, Group) and obj.name in server_module._group_ops
+        ]
+        assert len(groups) == len(server_module._group_ops)
+        for group in groups:
+            rendered = server_module._render_group_doc(
+                group.name, group.doc, server_module._group_ops[group.name]
+            )
+            assert "$" not in rendered, f"{group.name} doc left a placeholder unrendered"
+
+    def test_unknown_placeholder_raises(self) -> None:
+        with pytest.raises(RuntimeError, match="NoSuchOp"):
+            server_module._render_group_doc(
+                "ticktick_read",
+                "ticktick_read(operation='$NoSuchOp')",
+                server_module._group_ops["ticktick_read"],
+            )
+
+    def test_hardcoded_operation_raises(self) -> None:
+        with pytest.raises(RuntimeError, match="hardcodes"):
+            server_module._render_group_doc(
+                "ticktick_read",
+                "ticktick_read(operation='GetToday')",
+                server_module._group_ops["ticktick_read"],
+            )
+
+        with pytest.raises(RuntimeError, match="hardcodes"):
+            server_module._render_group_doc(
+                "ticktick_read",
+                "ticktick_read(operation = 'GetToday')",
+                server_module._group_ops["ticktick_read"],
+            )
+
+    def test_meta_operations_resolve_and_generic_form_passes_through(self) -> None:
+        rendered = server_module._render_group_doc(
+            "ticktick_read",
+            "operation='$help' operation='$schema' operation='<OpName>'",
+            {},
+        )
+        assert rendered == "operation='help' operation='schema' operation='<OpName>'"
+
+    def test_registered_op_name_resolves(self) -> None:
+        rendered = server_module._render_group_doc(
+            "ticktick_read",
+            "ticktick_read(operation='$GetToday')",
+            server_module._group_ops["ticktick_read"],
+        )
+        assert rendered == "ticktick_read(operation='GetToday')"

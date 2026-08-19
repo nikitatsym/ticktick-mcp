@@ -72,9 +72,11 @@ _TIMEZONE_DESC = (
 
 _GROUP_USAGE = (
     "\n\n"
-    "operation='help'                        — list ops with parameter names + types.\n"
-    "operation='help' params={'search':'X'}  — same, filtered to ops whose name contains X (case-insensitive).\n"
-    "operation='schema'                      — JSON Schema for one op. params={'op': 'OpName'} or params={} to list op names.\n"
+    # Column padding is sized for the RENDERED text: `$` disappears at render
+    # time, so these lines look one char wide here and line up in the tool doc.
+    "operation='$help'                        — list ops with parameter names + types.\n"
+    "operation='$help' params={'search':'X'}  — same, filtered to ops whose name contains X (case-insensitive).\n"
+    "operation='$schema'                      — JSON Schema for one op. params={'op': 'OpName'} or params={} to list op names.\n"
     "operation='<OpName>' params={...}       — invoke. Params validated strictly: "
     "unknown keys, wrong types, missing required → ValueError with field-level detail."
 )

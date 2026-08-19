@@ -11,6 +11,8 @@ stays mypy-strict clean.
 from __future__ import annotations
 
 import inspect
+import re
+import string
 import types
 import typing
 from collections.abc import Callable
@@ -284,6 +286,31 @@ def _dispatch(operation: str, group_name: str, params: dict[str, Any]) -> Any:
 
 # ── Registration ─────────────────────────────────────────────────────────────
 
+_HARDCODED_OPERATION = re.compile(r"""\boperation\s*=\s*["'](?![$<])""")
+
+
+def _render_group_doc(group_name: str, doc: str, ops: dict[str, OpFn]) -> str:
+    """Resolve $OpName placeholders in a group doc against the registered operations.
+
+    Examples are hand-written while operation names are derived from the tool
+    function names; rendering the names from the registry keeps the two from
+    drifting apart, and an unresolved placeholder aborts startup. A hardcoded
+    operation name is rejected outright; `<...>` stays available for deliberately
+    generic placeholders.
+    """
+    if _HARDCODED_OPERATION.search(doc):
+        raise RuntimeError(
+            f"{group_name} doc hardcodes an operation name; use the $OpName form"
+        )
+    # The dispatcher answers 'help' and 'schema' itself - they are not in `ops`.
+    names = {name: name for name in ops} | {"help": "help", "schema": "schema"}
+    try:
+        return string.Template(doc).substitute(names)
+    except (KeyError, ValueError) as exc:
+        raise RuntimeError(
+            f"{group_name} doc references an unknown operation placeholder: {exc}"
+        ) from exc
+
 
 def _register_tools() -> None:
     """Discover @_op-decorated functions, build Pydantic models, register MCP tools."""
@@ -306,6 +333,7 @@ def _register_tools() -> None:
     for group_name, (group, fns) in groups.items():
         ops = {_to_pascal(n): fn for n, fn in fns.items()}
         _group_ops[group_name] = ops
+        doc = _render_group_doc(group_name, group.doc, ops)
         for pascal_name in ops:
             _all_grouped[pascal_name] = group_name
 
@@ -320,7 +348,7 @@ def _register_tools() -> None:
             tool_fn.__doc__ = gdoc
             return tool_fn
 
-        mcp.tool()(_make_tool(group_name, group.doc))
+        mcp.tool()(_make_tool(group_name, doc))
 
 
 _register_tools()
