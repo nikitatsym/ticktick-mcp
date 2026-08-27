@@ -57,11 +57,11 @@ def test_brief_and_content_does_not_fetch(mock_client: MagicMock) -> None:
     assert "wholly new body" in sent["content"]
 
 
-def test_empty_brief_raises_before_fetch(mock_client: MagicMock) -> None:
-    with pytest.raises(ValueError, match="brief parameter must be non-empty"):
-        _dispatch("UpdateTask", "ticktick_write", {
-            "taskId": "t1", "projectId": "p1", "brief": "",
-        })
+def test_empty_brief_rejected_before_fetch(mock_client: MagicMock) -> None:
+    result = _dispatch("UpdateTask", "ticktick_write", {
+        "taskId": "t1", "projectId": "p1", "brief": "",
+    })
+    assert "brief parameter must be non-empty" in result["error"]
     mock_client.get_task.assert_not_called()
     mock_client.update_task.assert_not_called()
 

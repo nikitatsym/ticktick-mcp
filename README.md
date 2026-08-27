@@ -86,7 +86,7 @@ ticktick_delete(operation="DeleteTask", params={"projectId": "p1", "taskId": "t1
 ```
 
 Params are validated strictly via Pydantic: unknown keys, wrong types, and
-missing required fields all surface as a `ValueError` with field-level detail
+missing required fields return a contextual error result with field-level detail
 and a pointer to `operation='schema'`.
 
 ## Important semantics
@@ -134,8 +134,8 @@ whether the task is all-day or timed:
 `UpdateTask` requires `isAllDay` to be passed **explicitly** when changing
 `reminders`, `startDate`, or `dueDate` — the TickTick API silently drops
 `isAllDay` if you omit it on a partial update, which causes the mode (and
-therefore the reminder interpretation) to flip. The wrapper raises a
-`ValueError` before the API call.
+therefore the reminder interpretation) to flip. The wrapper rejects the call
+with an error before it reaches the API.
 
 `CreateTask` infers `isAllDay` from the date shape: date-only
 (`YYYY-MM-DD`) implies all-day; date+time implies timed. Pass `isAllDay`

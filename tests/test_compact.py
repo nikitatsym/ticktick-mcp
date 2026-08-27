@@ -4,8 +4,8 @@ Differences from v1 tests:
 - `_dispatch` returns native Python objects (dicts/lists/strings/None), NOT
   JSON strings. The earlier `json.loads(_dispatch(...))` was a bug (it
   always raised after commit 6cefd85 removed double-serialization).
-- Wrong-group and unknown-operation now raise `ValueError` instead of
-  returning `{"error": "..."}`.
+- Wrong-group and unknown-operation return `{"error": "..."}`; every expected
+  failure is dispatch result data, not an exception.
 - `_parse_bool` was removed — bool coercion happens in `_build_params_model`
   via a Pydantic `field_validator`. Covered in `test_pydantic_bool_coercion`
   below.
@@ -109,26 +109,26 @@ def test_help_surfaces_docstring_body() -> None:
 
 
 def test_read_op_via_write_tool() -> None:
-    with pytest.raises(ValueError, match="ticktick_read"):
-        _dispatch("GetToday", "ticktick_write", {})
+    assert "ticktick_read" in _dispatch("GetToday", "ticktick_write", {})["error"]
 
 
 def test_write_op_via_read_tool() -> None:
-    with pytest.raises(ValueError, match="ticktick_write"):
-        _dispatch("CreateTask", "ticktick_read", {})
+    assert "ticktick_write" in _dispatch("CreateTask", "ticktick_read", {})["error"]
 
 
 def test_delete_op_via_write_tool() -> None:
-    with pytest.raises(ValueError, match="ticktick_delete"):
-        _dispatch("DeleteTask", "ticktick_write", {})
+    assert "ticktick_delete" in _dispatch(
+        "DeleteTask", "ticktick_write", {}
+    )["error"]
 
 
 # ── Unknown operation ────────────────────────────────────────────────────────
 
 
 def test_unknown_operation() -> None:
-    with pytest.raises(ValueError, match="Unknown operation"):
-        _dispatch("NonExistent", "ticktick_read", {})
+    assert "Unknown operation" in _dispatch(
+        "NonExistent", "ticktick_read", {}
+    )["error"]
 
 
 # ── Pydantic bool coercion ───────────────────────────────────────────────────
@@ -252,10 +252,10 @@ def test_create_task(mock_client: MagicMock) -> None:
 
 
 def test_create_task_no_brief_no_content_validates(mock_client: MagicMock) -> None:
-    """Without brief param AND without content tag, _validate_brief raises."""
-    with pytest.raises(ValueError, match="Pass the 'brief' parameter"):
-        _dispatch("CreateTask", "ticktick_write",
-                  {"title": "T", "content": "no tag"})
+    """Without brief param AND without content tag, _validate_brief rejects it."""
+    result = _dispatch("CreateTask", "ticktick_write",
+                       {"title": "T", "content": "no tag"})
+    assert "Pass the 'brief' parameter" in result["error"]
 
 
 def test_update_task(mock_client: MagicMock) -> None:
