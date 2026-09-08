@@ -7,11 +7,13 @@ in test_strict_validation.py; this file pins the API, transport, and
 programming-error edges.
 """
 
+import json
 from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
+from mcp.types import TextContent
 
 from ticktick_mcp import server
 from ticktick_mcp.client import TickTickError
@@ -71,7 +73,10 @@ def test_registered_group_reports_invalid_help_input() -> None:
 
     result = group_tool(operation="help", params={"search": 1})
 
-    assert result == {"error": "help parameter 'search' must be a string"}
+    assert isinstance(result, TextContent)
+    assert json.loads(result.text) == {
+        "error": "help parameter 'search' must be a string"
+    }
 
 
 def test_programming_error_still_propagates(mock_client: MagicMock) -> None:

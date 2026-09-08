@@ -11,14 +11,18 @@ Differences from v1 tests:
   below.
 """
 
+import asyncio
 import inspect
+import json
 from collections.abc import Iterator
 from typing import cast
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
+from mcp.types import CallToolResult, TextContent
 
+from ticktick_mcp import server
 from ticktick_mcp import tools as _tools_module
 from ticktick_mcp.registry import Group, OpFn
 from ticktick_mcp.server import _build_help, _dispatch, _group_ops, _to_pascal
@@ -54,6 +58,27 @@ def test_total_operations() -> None:
         if hasattr(fn, "_mcp_group")
     )
     assert total == 16
+
+
+def test_registered_tools_return_compact_text_content() -> None:
+    assert all(
+        tool.fn_metadata.output_schema is None
+        for tool in server.mcp._tool_manager.list_tools()
+    )
+
+    result = asyncio.run(
+        server.mcp.call_tool(
+            "ticktick_read", {"operation": "schema", "params": {"op": "GetInboxId"}}
+        )
+    )
+    assert isinstance(result, CallToolResult)
+
+    assert result.structured_content is None
+    assert len(result.content) == 1
+    content = result.content[0]
+    assert isinstance(content, TextContent)
+    assert "\n" not in content.text
+    assert json.loads(content.text) == server._build_schema("ticktick_read", "GetInboxId")
 
 
 # ── _to_pascal ───────────────────────────────────────────────────────────────
