@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from .config import get_settings
+from .config import Settings, get_settings
 
 REDIRECT_URI = "https://nikitatsym.github.io/ticktick-mcp/"
 SCOPES = "tasks:read tasks:write"
 
 
-def get_access_token() -> str:
-    token = get_settings().ticktick_access_token
+def get_access_token(settings: Settings | None = None) -> str:
+    token = (settings or get_settings()).ticktick_access_token
     if token:
         return token
     raise RuntimeError(

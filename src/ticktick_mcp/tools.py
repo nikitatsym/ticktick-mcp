@@ -13,6 +13,7 @@ this — the rule lives in the docstring, help bullets, and validation message.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from typing import Annotated, Any, cast
 
 from pydantic import Field
@@ -29,11 +30,16 @@ from .prepare import (
 from .registry import _UNSET, ROOT, Group, _op
 from .types import ProjectDataDict, ProjectDict, SlimTaskDict, TaskDict
 
+# Set per request by a host serving several TickTick instances from one process;
+# unset in the plain single-instance server, which uses the module singleton below.
+client_var: ContextVar[TickTickClient | None] = ContextVar("ticktick_client", default=None)
 _client: TickTickClient | None = None
 
 
 def _get_client() -> TickTickClient:
     global _client
+    if (bound := client_var.get()) is not None:
+        return bound
     if _client is None:
         _client = TickTickClient()
     return _client

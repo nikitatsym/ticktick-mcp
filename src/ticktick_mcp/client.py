@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from .auth import get_access_token
+from .config import Settings
 from .types import ProjectDataDict, ProjectDict, TaskDict
 
 API_BASE = "https://api.ticktick.com/open/v1"
@@ -46,9 +47,13 @@ def _check_error(r: httpx.Response, method: str, path: str) -> None:
 
 
 class TickTickClient:
-    def __init__(self) -> None:
+    def __init__(
+        self, access_token: str | None = None, *, settings: Settings | None = None
+    ) -> None:
         self._inbox_id: str | None = None
-        token = get_access_token()
+        # get_access_token reads `settings or get_settings()` and raises the setup
+        # hint when the token is empty; an explicit access_token overrides both.
+        token = access_token or get_access_token(settings)
         self._http = httpx.Client(
             base_url=API_BASE,
             headers={

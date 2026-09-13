@@ -51,6 +51,8 @@ Requires [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 `ticktick-mcp --http` serves streamable HTTP at `http://127.0.0.1:8000/mcp` (`--host`, `--port`) instead of stdio, same environment variables. No authentication: put a gateway in front.
 
+The package can also be imported: `mcp`, `Settings`, `TickTickClient`, and `client_var` (a `ContextVar` the host sets per request) let one process serve several instances.
+
 ## Configuration
 
 | Variable | Required | Default | Description |

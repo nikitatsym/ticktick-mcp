@@ -3,7 +3,12 @@ from importlib.metadata import version
 
 from mcp.server.transport_security import TransportSecuritySettings
 
+from ticktick_mcp.client import TickTickClient
+from ticktick_mcp.config import Settings
 from ticktick_mcp.server import mcp
+from ticktick_mcp.tools import client_var
+
+__all__ = ["Settings", "TickTickClient", "client_var", "main", "mcp"]
 
 __version__ = version("ticktick-mcp")
 
