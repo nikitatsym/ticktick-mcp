@@ -47,6 +47,10 @@ stdio servers. For Claude Code global config on macOS: `~/.claude.json` →
 
 Requires [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
+### HTTP
+
+`ticktick-mcp --http` serves streamable HTTP at `http://127.0.0.1:8000/mcp` (`--host`, `--port`) instead of stdio, same environment variables. No authentication: put a gateway in front.
+
 ## Configuration
 
 | Variable | Required | Default | Description |
