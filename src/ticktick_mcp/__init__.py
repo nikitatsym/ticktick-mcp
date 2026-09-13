@@ -6,7 +6,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from ticktick_mcp.client import TickTickClient
 from ticktick_mcp.config import Settings
 from ticktick_mcp.server import mcp
-from ticktick_mcp.tools import client_var
+from ticktick_mcp.tools import _get_client, client_var
 
 __all__ = ["Settings", "TickTickClient", "client_var", "main", "mcp"]
 
@@ -26,6 +26,9 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1", help="bind address for --http")
     parser.add_argument("--port", type=int, default=8000, help="port for --http")
     args = parser.parse_args()
+
+    # Fail here, with the failing request in the traceback, not on the first tool call.
+    _get_client().check()
 
     if args.http:
         # Stateless: the gateway in front opens a session per call; nothing outlives a request.

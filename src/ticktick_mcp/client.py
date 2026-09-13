@@ -77,6 +77,16 @@ class TickTickClient:
         r = self._http.request(method, path)
         _check_error(r, method, path)
 
+    def check(self) -> dict[str, str]:
+        """One authenticated read, so a bad token fails at startup instead of on the first tool call.
+
+        Returns what the version tool reports as `service`; a bad credential or
+        an unreachable host surfaces as TickTickError or the transport error,
+        naming the failing request.
+        """
+        self.list_projects()
+        return {"status": "ok"}
+
     # ── Inbox ───────────────────────────────────────────
 
     def get_inbox_id(self) -> str:

@@ -110,14 +110,7 @@ ticktick_delete = Group(
 def ticktick_version() -> dict[str, Any]:
     """Get the TickTick MCP server version and service status."""
     from importlib.metadata import version
-    try:
-        _get_client().list_projects()
-        service: dict[str, Any] = {"status": "ok"}
-    except Exception as e:  # noqa: BLE001 - reporting reachability is this tool's whole contract
-        # Without the detail, "error" cannot distinguish a missing token from a
-        # network failure from a TickTick outage.
-        service = {"status": "error", "error": f"{type(e).__name__}: {e}"}
-    return {"mcp": version("ticktick-mcp"), "service": service}
+    return {"mcp": version("ticktick-mcp"), "service": _get_client().check()}
 
 
 # ── Read operations ──────────────────────────────────────────────────────────

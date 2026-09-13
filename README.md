@@ -62,6 +62,10 @@ The package can also be imported: `mcp`, `Settings`, `TickTickClient`, and `clie
 | `TICKTICK_ACCESS_TOKEN` | Yes | — | Bearer token issued by the OAuth flow. The setup page generates this for you. |
 | `MCP_TICKTICK_BRIEF_MAX` | No | `100` | Max length of the `<brief>` tag. `0` disables enforcement entirely. |
 
+The server checks the token at startup with one authenticated request
+(`GET /project`) and refuses to start if it is missing or rejected, printing
+the failing request. A broken credential never waits for the first tool call.
+
 ## Tool Groups
 
 All 16 operations are exposed through 3 risk-graded meta-tools — one tool
