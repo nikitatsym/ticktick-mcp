@@ -1,14 +1,14 @@
 # TickTick MCP Server
 
 MCP server for [TickTick](https://ticktick.com) task manager. Create, update,
-complete, and delete tasks and projects with full support for subtasks,
+complete, and delete tasks and projects with support for subtasks,
 priorities, tags, reminders, and recurrence — from Claude, MetaMCP, or any
 MCP client.
 
 ## Features
 
-- **16 operations** covering tasks, projects, and the Inbox
-- **3 risk-graded meta-tools** (`ticktick_read` / `ticktick_write` / `ticktick_delete`) — agents pick a tool surface by side-effect kind
+- Tasks, projects, and the Inbox
+- **Risk-graded meta-tools** (`ticktick_read` / `ticktick_write` / `ticktick_delete`) — agents pick a tool surface by side-effect kind
 - Pydantic param validation with `extra='forbid'` — unknown keys, missing required fields, and wrong types fail loudly
 - Per-op `operation='schema'` returning a full JSON Schema; `operation='help'` with substring search (`params={'search':'X'}`)
 - Brief enforcement: writes require a `<brief>summary</brief>` tag (or a `brief` parameter that injects it) so list views stay scannable
@@ -68,8 +68,8 @@ the failing request. A broken credential never waits for the first tool call.
 
 ## Tool Groups
 
-All 16 operations are exposed through 3 risk-graded meta-tools — one tool
-surface per scope, dispatched via `operation` + `params`.
+Operations are exposed through risk-graded meta-tools — one tool surface per
+scope, dispatched via `operation` + `params`.
 
 | Meta-tool | Scope | Operations |
 |---|---|---|
