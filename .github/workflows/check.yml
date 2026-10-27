@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Build & Release runs this as its gate, so nothing red is published.
+  workflow_call:
 
 jobs:
   check:

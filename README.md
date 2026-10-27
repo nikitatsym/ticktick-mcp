@@ -156,14 +156,10 @@ explicitly to override or when there's no date.
 ## Development
 
 ```bash
-# unit tests
-npm test                     # or: uv run pytest -m 'not integration'
-
-# lint + type-check
-npm run lint                 # or: uv run ruff check . && uv run mypy src/
-
-# integration tests — require live TICKTICK_* env vars (creates and deletes a real task)
-npm run test:integration
+python3 dev.py check   # lint (ruff, mypy, tackbox) + tests; the pre-commit and CI gate
+python3 dev.py lint
+python3 dev.py test
+python3 dev.py hook    # install the tracked pre-commit hook
 ```
 
 `src/` is type-checked under `mypy --strict`. The two intentionally dynamic

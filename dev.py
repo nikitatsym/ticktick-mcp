@@ -15,11 +15,19 @@ def _run(cmd: list[str]) -> int:
     return subprocess.run(cmd, cwd=ROOT, check=False).returncode
 
 
+def _aggregate(codes: list[int]) -> int:
+    return next((c for c in codes if c != 0), 0)
+
+
 def lint() -> int:
-    rc = _run(["uv", "run", "ruff", "check"])
-    if rc:
-        return rc
-    return _run(["uv", "run", "mypy"])
+    # Run all three so one failing linter never hides another's findings.
+    return _aggregate(
+        [
+            _run(["uv", "run", "ruff", "check"]),
+            _run(["uv", "run", "mypy"]),
+            _run(["uvx", "tackbox@latest", "lint", "."]),
+        ]
+    )
 
 
 def test() -> int:

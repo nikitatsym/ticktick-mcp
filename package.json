@@ -3,8 +3,7 @@
   "private": true,
   "description": "Workflow scripts for ticktick-mcp — tests and linting",
   "scripts": {
-    "test": "uv run pytest -m 'not integration'",
-    "test:integration": "uv run pytest -m integration",
-    "lint": "uv run ruff check . && uv run mypy src/"
+    "test": "python3 dev.py test",
+    "lint": "python3 dev.py lint"
   }
 }

@@ -12,7 +12,11 @@ permissions:
   id-token: write
 
 jobs:
+  check:
+    uses: ./.github/workflows/check.yml
+
   build:
+    needs: [check]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
