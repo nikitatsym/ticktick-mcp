@@ -1,20 +1,19 @@
 """Pydantic validation: unknown keys, missing required, wrong types.
 
-All come back from `_dispatch` as `{"error": ...}` with field-level detail,
-pointing the agent at `operation='schema'` for the full spec. The detail is the
-whole point: an exception here would reach the MCP caller as a contextless
-tool failure.
+All raise a ToolError from `_dispatch` with field-level detail, pointing the
+agent at `operation='schema'` for the full spec.
 """
+
+import pytest
+from mcp.server.mcpserver.exceptions import ToolError
 
 from ticktick_mcp.server import _dispatch
 
 
 def _error(operation: str, group: str, params: dict[str, object]) -> str:
-    result = _dispatch(operation, group, params)
-    assert isinstance(result, dict), result
-    error = result["error"]
-    assert isinstance(error, str), error
-    return error
+    with pytest.raises(ToolError) as excinfo:
+        _dispatch(operation, group, params)
+    return str(excinfo.value)
 
 
 def test_unknown_param_reports_error() -> None:

@@ -23,6 +23,7 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 import pydantic_core
 from mcp.server.mcpserver import Image, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ContentBlock, TextContent
 from pydantic import (
     BaseModel,
@@ -328,10 +329,12 @@ def _redact_error_text(value: object) -> str:
             try:
                 port = parts.port
             except ValueError:
+                # no-report: an out-of-range port is scrub input, dropping it is the redaction
                 port = None
             netloc = f"{host}:{port}" if port is not None else host
             return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
         except ValueError:
+            # no-report: an unparsable URL is scrub input, reporting it re-emits the secret
             return "<redacted-url>"
 
     text = _URL_RE.sub(_redact_url, text)
@@ -356,33 +359,30 @@ _EXPECTED_FAILURES: tuple[type[Exception], ...] = (
 )
 
 
-def _error_result(exc: Exception) -> dict[str, str]:
-    """Render an expected failure as a contextual, secret-safe operation result."""
+def _error_text(exc: Exception) -> str:
+    """Render an expected failure as a contextual, secret-safe message."""
     if isinstance(exc, httpx.HTTPError):
         request: httpx.Request | None = None
         if isinstance(exc, (httpx.RequestError, httpx.HTTPStatusError)):
             try:
                 request = exc.request
             except RuntimeError:
+                # no-report: httpx raises when a RequestError has no request, absence is normal
                 pass
         method = request.method if request is not None else "REQUEST"
         path = request.url.path if request is not None else "<unknown path>"
         cause = _redact_error_text(exc) or "request failed"
-        return {
-            "error": (
-                f"TickTick request failed: {method} {path}: "
-                f"{type(exc).__name__}: {cause}"
-            )
-        }
-    return {"error": _redact_error_text(exc)}
+        return f"TickTick request failed: {method} {path}: {type(exc).__name__}: {cause}"
+    return _redact_error_text(exc)
 
 
 def _dispatch(operation: str, group_name: str, params: dict[str, Any]) -> Any:
-    """Route an operation call, reporting expected failures as `{"error": ...}`.
+    """Route an operation call; an expected failure raises a ToolError with its cause.
 
     Bad params, an unknown operation, a TickTick API status error, and a
-    transport failure all return the cause as data - an exception crossing the
-    MCP boundary would reach the caller as a contextless tool failure instead.
+    transport failure reach the caller as a failed tool result. The SDK forwards
+    a ToolError's text as is, so it is redacted here: exception messages can
+    carry tokens and query strings.
     """
     try:
         if operation == "help":
@@ -403,7 +403,7 @@ def _dispatch(operation: str, group_name: str, params: dict[str, Any]) -> Any:
             )
         return _coerce_call(ops[operation], params, operation)
     except _EXPECTED_FAILURES as exc:
-        return _error_result(exc)
+        raise ToolError(_error_text(exc)) from exc
 
 
 # ── Registration ─────────────────────────────────────────────────────────────

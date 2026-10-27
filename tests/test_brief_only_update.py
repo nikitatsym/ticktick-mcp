@@ -2,13 +2,14 @@
 
 The wrapper must fetch the existing task body and rewrite only the <brief>
 tag — passing brief alone must NOT clobber the rest of the body. This is the
-behaviour the original tools.py:186-188 implemented; v2.5 preserves it.
+behaviour the original tools.py:186-188 implemented.
 """
 
 from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
+from mcp.server.mcpserver.exceptions import ToolError
 
 from ticktick_mcp.server import _dispatch
 
@@ -58,10 +59,10 @@ def test_brief_and_content_does_not_fetch(mock_client: MagicMock) -> None:
 
 
 def test_empty_brief_rejected_before_fetch(mock_client: MagicMock) -> None:
-    result = _dispatch("UpdateTask", "ticktick_write", {
-        "taskId": "t1", "projectId": "p1", "brief": "",
-    })
-    assert "brief parameter must be non-empty" in result["error"]
+    with pytest.raises(ToolError, match="brief parameter must be non-empty"):
+        _dispatch("UpdateTask", "ticktick_write", {
+            "taskId": "t1", "projectId": "p1", "brief": "",
+        })
     mock_client.get_task.assert_not_called()
     mock_client.update_task.assert_not_called()
 

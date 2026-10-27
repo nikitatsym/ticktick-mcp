@@ -37,11 +37,12 @@ class TickTickError(Exception):
 def _check_error(r: httpx.Response, method: str, path: str) -> None:
     if r.status_code < 400:
         return
-    try:
-        body: Any = r.json()
     # r.json() decodes bytes, so a non-UTF-8 error page raises
     # UnicodeDecodeError, not JSONDecodeError. ValueError covers both.
+    try:
+        body: Any = r.json()
     except ValueError:
+        # no-report: parse fallback for a non-JSON error body; the HTTP error raises below
         body = r.text
     raise TickTickError(r.status_code, method, path, body)
 
@@ -97,7 +98,8 @@ class TickTickClient:
         temp_id = temp_task["id"]
         try:
             self.delete_task(self._inbox_id, temp_id)
-        except Exception:  # noqa: BLE001 - the id is already in hand; cleanup must not cost the caller its answer
+        except Exception:  # noqa: BLE001
+            # no-report: the inbox id is already in hand; a leftover probe task is logged, not worth failing the call
             _log.warning(
                 "inbox probe task %s left behind in project %s",
                 temp_id, self._inbox_id, exc_info=True,

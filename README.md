@@ -96,8 +96,10 @@ ticktick_delete(operation="DeleteTask", params={"projectId": "p1", "taskId": "t1
 ```
 
 Params are validated strictly via Pydantic: unknown keys, wrong types, and
-missing required fields return a contextual error result with field-level detail
-and a pointer to `operation='schema'`.
+missing required fields fail the tool call with field-level detail and a
+pointer to `operation='schema'`. Every expected failure (bad params, unknown
+operation, TickTick API error, transport failure) comes back as a failed tool
+result carrying its cause, with credentials and query values redacted.
 
 ## Important semantics
 

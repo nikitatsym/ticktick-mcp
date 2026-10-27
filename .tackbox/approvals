@@ -1,0 +1,6 @@
+src/ticktick_mcp/client.py#TickTickClient.get_inbox_id: no-report: the inbox id is already in hand; a leftover probe task is logged, not worth failing the call
+src/ticktick_mcp/client.py#_check_error: no-report: parse fallback for a non-JSON error body; the HTTP error raises below
+src/ticktick_mcp/config.py#system_timezone: no-report: the OS zone only feeds an error-text hint; unresolvable means no hint
+src/ticktick_mcp/server.py#_error_text: no-report: httpx raises when a RequestError has no request, absence is normal
+src/ticktick_mcp/server.py#_redact_error_text._redact_url: no-report: an out-of-range port is scrub input, dropping it is the redaction
+src/ticktick_mcp/server.py#_redact_error_text._redact_url: no-report: an unparsable URL is scrub input, reporting it re-emits the secret

@@ -1,19 +1,20 @@
-"""Expected failures reach the MCP caller as result data, not as exceptions.
+"""Expected failures reach the MCP caller as failed tool results with their cause.
 
-An exception crossing the tool boundary is reported by MCP clients as a
-contextless execution failure, so the TickTick status, the failing request, and
-the offending parameter would all be lost. Parameter-validation coverage lives
-in test_strict_validation.py; this file pins the API, transport, and
-programming-error edges.
+`_dispatch` raises a ToolError carrying the TickTick status, the failing
+request, or the offending parameter, redacted of credentials and query values.
+Parameter-validation coverage lives in test_strict_validation.py; this file pins
+the API, transport, wire, and programming-error edges.
 """
 
-import json
+import asyncio
 from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
-from mcp.types import TextContent
+from mcp.client import Client
+from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import CallToolResult, TextContent
 
 from ticktick_mcp import server
 from ticktick_mcp.client import TickTickError
@@ -27,19 +28,26 @@ def mock_client() -> Iterator[MagicMock]:
         yield client
 
 
+def call_over_mcp(tool: str, arguments: dict[str, object]) -> CallToolResult:
+    async def call() -> CallToolResult:
+        async with Client(server.mcp) as client:
+            return await client.call_tool(tool, arguments)
+
+    return asyncio.run(call())
+
+
 def test_api_error_keeps_status_method_path_and_body(mock_client: MagicMock) -> None:
     mock_client.get_project.side_effect = TickTickError(
         404, "GET", "/open/v1/project/p1", {"errorCode": "project_not_found"}
     )
 
-    result = _dispatch("GetProject", "ticktick_read", {"projectId": "p1"})
+    with pytest.raises(ToolError) as excinfo:
+        _dispatch("GetProject", "ticktick_read", {"projectId": "p1"})
 
-    assert result == {
-        "error": (
-            "TickTick API 404 GET /open/v1/project/p1: "
-            "{'errorCode': 'project_not_found'}"
-        )
-    }
+    assert str(excinfo.value) == (
+        "TickTick API 404 GET /open/v1/project/p1: {'errorCode': 'project_not_found'}"
+    )
+    assert isinstance(excinfo.value.__cause__, TickTickError)
 
 
 def test_transport_error_names_request_without_query(mock_client: MagicMock) -> None:
@@ -50,37 +58,59 @@ def test_transport_error_names_request_without_query(mock_client: MagicMock) -> 
         "Connection refused", request=request
     )
 
-    result = _dispatch("GetProject", "ticktick_read", {"projectId": "p1"})
+    with pytest.raises(ToolError) as excinfo:
+        _dispatch("GetProject", "ticktick_read", {"projectId": "p1"})
 
-    assert result == {
-        "error": (
-            "TickTick request failed: GET /open/v1/project/p1: "
-            "ConnectError: Connection refused"
-        )
-    }
-    assert "must-not-leak" not in repr(result)
+    assert str(excinfo.value) == (
+        "TickTick request failed: GET /open/v1/project/p1: ConnectError: Connection refused"
+    )
+    assert "must-not-leak" not in str(excinfo.value)
 
 
 def test_missing_required_param_reports_the_field(mock_client: MagicMock) -> None:
-    result = _dispatch("GetProject", "ticktick_read", {})
+    with pytest.raises(ToolError, match="projectId"):
+        _dispatch("GetProject", "ticktick_read", {})
 
-    assert "projectId" in result["error"]
     mock_client.get_project.assert_not_called()
 
 
-def test_registered_group_reports_invalid_help_input() -> None:
-    group_tool = server.mcp._tool_manager._tools["ticktick_read"].fn
+def test_failure_is_an_error_result_on_the_wire(mock_client: MagicMock) -> None:
+    mock_client.get_project.side_effect = TickTickError(
+        401, "GET", "/open/v1/project/p1?access_token=must-not-leak", {"error": "unauthorized"}
+    )
 
-    result = group_tool(operation="help", params={"search": 1})
+    result = call_over_mcp("ticktick_read", {"operation": "GetProject", "params": {"projectId": "p1"}})
 
-    assert isinstance(result, TextContent)
-    assert json.loads(result.text) == {
-        "error": "help parameter 'search' must be a string"
-    }
+    assert result.is_error is True
+    assert len(result.content) == 1
+    text = result.content[0]
+    assert isinstance(text, TextContent)
+    assert "TickTick API 401 GET /open/v1/project/p1" in text.text
+    assert "must-not-leak" not in text.text
+
+
+def test_invalid_help_input_is_an_error_result_on_the_wire() -> None:
+    result = call_over_mcp("ticktick_read", {"operation": "help", "params": {"search": 1}})
+
+    assert result.is_error is True
+    text = result.content[0]
+    assert isinstance(text, TextContent)
+    assert "help parameter 'search' must be a string" in text.text
+
+
+def test_success_is_not_an_error_result_on_the_wire(mock_client: MagicMock) -> None:
+    mock_client.get_project.return_value = {"id": "p1", "name": "Work"}
+
+    result = call_over_mcp("ticktick_read", {"operation": "GetProject", "params": {"projectId": "p1"}})
+
+    assert result.is_error is False
+    text = result.content[0]
+    assert isinstance(text, TextContent)
+    assert text.text == '{"id":"p1","name":"Work"}'
 
 
 def test_programming_error_still_propagates(mock_client: MagicMock) -> None:
-    """A bug must stay a crash: only expected failures become result data."""
+    """A bug must stay a crash, not be dressed up as an expected failure."""
     mock_client.get_project.side_effect = TypeError("slim_task() got an int")
 
     with pytest.raises(TypeError):

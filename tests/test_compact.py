@@ -1,14 +1,11 @@
-"""Tests for grouped tool dispatch (post-v2.5).
+"""Tests for grouped tool dispatch.
 
-Differences from v1 tests:
 - `_dispatch` returns native Python objects (dicts/lists/strings/None), NOT
-  JSON strings. The earlier `json.loads(_dispatch(...))` was a bug (it
-  always raised after commit 6cefd85 removed double-serialization).
-- Wrong-group and unknown-operation return `{"error": "..."}`; every expected
-  failure is dispatch result data, not an exception.
-- `_parse_bool` was removed — bool coercion happens in `_build_params_model`
-  via a Pydantic `field_validator`. Covered in `test_pydantic_bool_coercion`
-  below.
+  JSON strings; the `_compact` wrapper serializes them once.
+- Wrong-group, unknown-operation and every other expected failure raise a
+  ToolError carrying the cause.
+- Bool coercion happens in `_build_params_model` via a Pydantic
+  `field_validator`. Covered in `test_pydantic_bool_coercion` below.
 """
 
 import asyncio
@@ -20,6 +17,7 @@ from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 
 from ticktick_mcp import server
@@ -134,26 +132,26 @@ def test_help_surfaces_docstring_body() -> None:
 
 
 def test_read_op_via_write_tool() -> None:
-    assert "ticktick_read" in _dispatch("GetToday", "ticktick_write", {})["error"]
+    with pytest.raises(ToolError, match="ticktick_read"):
+        _dispatch("GetToday", "ticktick_write", {})
 
 
 def test_write_op_via_read_tool() -> None:
-    assert "ticktick_write" in _dispatch("CreateTask", "ticktick_read", {})["error"]
+    with pytest.raises(ToolError, match="ticktick_write"):
+        _dispatch("CreateTask", "ticktick_read", {})
 
 
 def test_delete_op_via_write_tool() -> None:
-    assert "ticktick_delete" in _dispatch(
-        "DeleteTask", "ticktick_write", {}
-    )["error"]
+    with pytest.raises(ToolError, match="ticktick_delete"):
+        _dispatch("DeleteTask", "ticktick_write", {})
 
 
 # ── Unknown operation ────────────────────────────────────────────────────────
 
 
 def test_unknown_operation() -> None:
-    assert "Unknown operation" in _dispatch(
-        "NonExistent", "ticktick_read", {}
-    )["error"]
+    with pytest.raises(ToolError, match="Unknown operation"):
+        _dispatch("NonExistent", "ticktick_read", {})
 
 
 # ── Pydantic bool coercion ───────────────────────────────────────────────────
@@ -278,9 +276,8 @@ def test_create_task(mock_client: MagicMock) -> None:
 
 def test_create_task_no_brief_no_content_validates(mock_client: MagicMock) -> None:
     """Without brief param AND without content tag, _validate_brief rejects it."""
-    result = _dispatch("CreateTask", "ticktick_write",
-                       {"title": "T", "content": "no tag"})
-    assert "Pass the 'brief' parameter" in result["error"]
+    with pytest.raises(ToolError, match="Pass the 'brief' parameter"):
+        _dispatch("CreateTask", "ticktick_write", {"title": "T", "content": "no tag"})
 
 
 def test_update_task(mock_client: MagicMock) -> None:

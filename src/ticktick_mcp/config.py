@@ -44,4 +44,5 @@ def system_timezone() -> str | None:
     try:
         return tzlocal.get_localzone().key
     except ZoneInfoNotFoundError:
+        # no-report: the OS zone only feeds an error-text hint; unresolvable means no hint
         return None
