@@ -11,12 +11,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
+from ticktick_mcp.config import Settings
 from ticktick_mcp.server import _dispatch
 
 
 @pytest.fixture()
 def mock_client() -> Iterator[MagicMock]:
     client = MagicMock()
+    client.settings = Settings(mcp_ticktick_brief_max=100)
     # Every UpdateTask starts with the liveness guard; t1 listed as live keeps
     # the guard off the get_task path these tests assert on.
     client.get_project_with_data.return_value = {"tasks": [{"id": "t1"}]}

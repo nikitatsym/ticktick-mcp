@@ -7,6 +7,7 @@ GetToday computes the day boundaries in the zone the caller passes.
 from __future__ import annotations
 
 from datetime import datetime, tzinfo
+from functools import partial
 from typing import Any
 
 import httpx
@@ -21,6 +22,8 @@ from ticktick_mcp.server import _build_schema
 LIST_PROJECTS: Route = ("GET", "/open/v1/project")
 DELETE_PROBE: Route = ("DELETE", "/open/v1/project/inbox/task/probe")
 INBOX_DATA: Route = ("GET", "/open/v1/project/inbox/data")
+
+prepare = partial(prepare_task, brief_max=100)
 
 
 def inbox_only(tasks: list[dict[str, Any]]) -> Api:
@@ -57,7 +60,7 @@ class TestNoFallback:
         """The env var may be set in the environment; it must change nothing."""
         monkeypatch.setenv("MCP_TICKTICK_TIMEZONE", "Europe/Berlin")
         with pytest.raises(ValueError) as exc:
-            prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
+            prepare({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
         msg = str(exc.value)
         assert "no timeZone" in msg
         assert "MCP_TICKTICK_TIMEZONE" not in msg
@@ -66,7 +69,7 @@ class TestNoFallback:
         assert not hasattr(get_settings(), "mcp_ticktick_timezone")
 
     def test_param_still_normalizes(self) -> None:
-        task = prepare_task({
+        task = prepare({
             "title": "T", "brief": "B",
             "dueDate": "2026-03-15T19:00", "timeZone": "Europe/Berlin",
         })
@@ -76,7 +79,7 @@ class TestNoFallback:
     def test_hint_softened(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("ticktick_mcp.prepare.system_timezone", lambda: "Europe/Berlin")
         with pytest.raises(ValueError) as exc:
-            prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
+            prepare({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
         msg = str(exc.value)
         assert "container artifact" in msg
         assert "Europe/Berlin" in msg
@@ -84,14 +87,14 @@ class TestNoFallback:
     def test_no_hint_without_system_zone(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("ticktick_mcp.prepare.system_timezone", lambda: None)
         with pytest.raises(ValueError) as exc:
-            prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
+            prepare({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
         msg = str(exc.value)
         assert "System timezone" not in msg
         assert "no timeZone" in msg
 
     def test_unknown_zone_message_has_no_tbilisi(self) -> None:
         with pytest.raises(ValueError) as exc:
-            prepare_task({"title": "T", "brief": "B", "timeZone": "Nope/Nope"})
+            prepare({"title": "T", "brief": "B", "timeZone": "Nope/Nope"})
         msg = str(exc.value)
         assert "Unknown timezone" in msg
         assert "Tbilisi" not in msg

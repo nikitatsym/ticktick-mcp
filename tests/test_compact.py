@@ -22,6 +22,7 @@ from mcp.types import CallToolResult, TextContent
 
 from ticktick_mcp import server
 from ticktick_mcp import tools as _tools_module
+from ticktick_mcp.config import Settings
 from ticktick_mcp.registry import Group, OpFn
 from ticktick_mcp.server import _build_help, _dispatch, _to_pascal
 from ticktick_mcp.tools import ticktick_delete, ticktick_read, ticktick_write
@@ -183,6 +184,7 @@ def test_pydantic_bool_coercion_yes_no() -> None:
 @pytest.fixture()
 def mock_client() -> Iterator[MagicMock]:
     client = MagicMock()
+    client.settings = Settings(mcp_ticktick_brief_max=100)
     with patch("ticktick_mcp.tools._get_client", return_value=client):
         yield client
 

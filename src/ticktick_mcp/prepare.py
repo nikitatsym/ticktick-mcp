@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .config import get_settings, system_timezone
+from .config import system_timezone
 from .registry import UNSET
 from .types import SlimTaskDict, TaskDict
 
@@ -60,7 +60,7 @@ def _inject_brief(brief: str, content: str | None) -> str:
     return tag
 
 
-def _validate_brief(content: str | None, brief_param: str | None = None) -> None:
+def _validate_brief(content: str | None, brief_param: str | None = None, *, brief_max: int) -> None:
     """Raise ValueError if the brief requirement is on and neither source carries one.
 
     Two sources are valid: an explicit `brief` parameter OR a `<brief>…</brief>`
@@ -70,7 +70,6 @@ def _validate_brief(content: str | None, brief_param: str | None = None) -> None
     `brief_param=""` (empty string) is rejected here so callers don't end up
     with a `<brief></brief>` tag silently accepted by the regex.
     """
-    brief_max = get_settings().mcp_ticktick_brief_max
     if brief_max == 0:
         return
 
@@ -236,12 +235,13 @@ def _coerce_bool(v: Any) -> bool:
     return bool(v)
 
 
-def prepare_task(params: dict[str, Any], is_update: bool = False) -> dict[str, Any]:
+def prepare_task(params: dict[str, Any], *, brief_max: int, is_update: bool = False) -> dict[str, Any]:
     """Build the validated task payload for the TickTick API.
 
     Assembles the wire dict from `params` and validates it on the way: the
-    brief rule, date normalization against the `timeZone` param, isAllDay
-    inference and its fail-fast rules, priorities, and reminder triggers.
+    brief rule (capped at `brief_max` chars, 0 disables it), date normalization
+    against the `timeZone` param, isAllDay inference and its fail-fast rules,
+    priorities, and reminder triggers.
     """
     # 1. Strip the UNSET sentinel so existing `is not None` checks below
     #    correctly see "key absent" for omitted params.
@@ -260,9 +260,9 @@ def prepare_task(params: dict[str, Any], is_update: bool = False) -> dict[str, A
     if is_update:
         # Validate brief only when content is being changed OR brief was passed.
         if content is not None or brief_param is not None:
-            _validate_brief(content, brief_param=brief_param)
+            _validate_brief(content, brief_param=brief_param, brief_max=brief_max)
     else:
-        _validate_brief(content, brief_param=brief_param)
+        _validate_brief(content, brief_param=brief_param, brief_max=brief_max)
 
     # 2. The zone has exactly one source: the timeZone param.
     tz_name = params.get("timeZone")

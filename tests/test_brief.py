@@ -1,13 +1,40 @@
 """Tests for brief injection, validation, and slim task logic."""
 
+from unittest.mock import MagicMock
+
 import pytest
 
+from ticktick_mcp import tools
+from ticktick_mcp.config import Settings
 from ticktick_mcp.prepare import (
     _inject_brief,
     _validate_brief,
     slim_task,
 )
 from ticktick_mcp.types import TaskDict
+
+
+def test_brief_limit_comes_from_the_bound_instance() -> None:
+    """Under mcps-host each instance binds its own client; its limit must apply."""
+    strict, lax = MagicMock(), MagicMock()
+    strict.settings = Settings(mcp_ticktick_brief_max=5)
+    lax.settings = Settings(mcp_ticktick_brief_max=100)
+    lax.create_task.side_effect = lambda task: {**task, "id": "n1"}
+
+    token = tools.client_var.set(strict)
+    try:
+        with pytest.raises(ValueError, match="brief too long"):
+            tools.create_task(title="T", brief="ten chars!")
+    finally:
+        tools.client_var.reset(token)
+    strict.create_task.assert_not_called()
+
+    token = tools.client_var.set(lax)
+    try:
+        assert tools.create_task(title="T", brief="ten chars!")["id"] == "n1"
+    finally:
+        tools.client_var.reset(token)
+
 
 # ── _inject_brief ─────────────────────────────────────────────────────────────
 
@@ -102,63 +129,51 @@ def test_slim_missing_optional_fields() -> None:
 class TestValidateBriefContentPath:
     """Brief validation via the content path (no `brief` parameter)."""
 
-    def test_valid_brief_in_content(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
-        _validate_brief("<brief>Short summary</brief>\nFull body.")
+    def test_valid_brief_in_content(self) -> None:
+        _validate_brief("<brief>Short summary</brief>\nFull body.", brief_max=200)
 
-    def test_missing_brief_tag_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
+    def test_missing_brief_tag_raises(self) -> None:
         with pytest.raises(ValueError, match="Pass the 'brief' parameter"):
-            _validate_brief("Content without brief tag")
+            _validate_brief("Content without brief tag", brief_max=200)
 
-    def test_none_content_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
+    def test_none_content_raises(self) -> None:
         with pytest.raises(ValueError, match="Pass the 'brief' parameter"):
-            _validate_brief(None)
+            _validate_brief(None, brief_max=200)
 
-    def test_empty_content_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
+    def test_empty_content_raises(self) -> None:
         with pytest.raises(ValueError, match="Pass the 'brief' parameter"):
-            _validate_brief("")
+            _validate_brief("", brief_max=200)
 
-    def test_too_long_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
+    def test_too_long_raises(self) -> None:
         with pytest.raises(ValueError, match="too long"):
-            _validate_brief(f"<brief>{'x' * 201}</brief>")
+            _validate_brief(f"<brief>{'x' * 201}</brief>", brief_max=200)
 
-    def test_at_max_length_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
-        _validate_brief(f"<brief>{'x' * 200}</brief>")
+    def test_at_max_length_ok(self) -> None:
+        _validate_brief(f"<brief>{'x' * 200}</brief>", brief_max=200)
 
-    def test_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "0")
-        _validate_brief("no brief, no problem")
-        _validate_brief(None)
+    def test_disabled(self) -> None:
+        _validate_brief("no brief, no problem", brief_max=0)
+        _validate_brief(None, brief_max=0)
 
-    def test_custom_max_length(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "50")
-        _validate_brief(f"<brief>{'x' * 50}</brief>")
+    def test_custom_max_length(self) -> None:
+        _validate_brief(f"<brief>{'x' * 50}</brief>", brief_max=50)
         with pytest.raises(ValueError, match="too long"):
-            _validate_brief(f"<brief>{'x' * 51}</brief>")
+            _validate_brief(f"<brief>{'x' * 51}</brief>", brief_max=50)
 
 
 class TestValidateBriefParamPath:
     """Brief validation via the `brief` parameter path."""
 
-    def test_valid_param(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
-        _validate_brief(None, brief_param="A short summary")
+    def test_valid_param(self) -> None:
+        _validate_brief(None, brief_param="A short summary", brief_max=200)
 
-    def test_empty_param_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "200")
+    def test_empty_param_raises(self) -> None:
         with pytest.raises(ValueError, match="brief parameter must be non-empty"):
-            _validate_brief(None, brief_param="")
+            _validate_brief(None, brief_param="", brief_max=200)
 
-    def test_param_too_long_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "50")
+    def test_param_too_long_raises(self) -> None:
         with pytest.raises(ValueError, match="brief too long"):
-            _validate_brief(None, brief_param="x" * 51)
+            _validate_brief(None, brief_param="x" * 51, brief_max=50)
 
-    def test_disabled_skips_param_check(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MCP_TICKTICK_BRIEF_MAX", "0")
-        _validate_brief(None, brief_param="")  # empty allowed when off
+    def test_disabled_skips_param_check(self) -> None:
+        _validate_brief(None, brief_param="", brief_max=0)  # empty allowed when off

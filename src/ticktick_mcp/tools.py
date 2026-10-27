@@ -236,8 +236,10 @@ def create_task(
     Reminders require isAllDay to be set or inferable. Triggers must match the
     mode: PT9H (all-day) vs -PT5M (timed). The wrapper validates fail-fast.
     """
-    task = prepare_task(dict(locals()))
-    result = _get_client().create_task(task)
+    params = dict(locals())
+    client = _get_client()
+    task = prepare_task(params, brief_max=client.settings.mcp_ticktick_brief_max)
+    result = client.create_task(task)
     verify_response(task, result)
     return dict(result)
 
@@ -301,8 +303,9 @@ def update_task(
         existing = _get_client().get_task(projectId, taskId)
         params["content"] = existing.get("content") or ""
 
-    task = prepare_task(params, is_update=True)
-    result = _get_client().update_task(taskId, task)
+    client = _get_client()
+    task = prepare_task(params, brief_max=client.settings.mcp_ticktick_brief_max, is_update=True)
+    result = client.update_task(taskId, task)
     verify_response(task, result)
     return dict(result)
 

@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from .auth import get_access_token
-from .config import Settings
+from .config import Settings, get_settings
 from .types import ProjectDataDict, ProjectDict, TaskDict
 
 API_BASE = "https://api.ticktick.com/open/v1"
@@ -52,9 +52,10 @@ class TickTickClient:
         self, access_token: str | None = None, *, settings: Settings | None = None
     ) -> None:
         self._inbox_id: str | None = None
-        # get_access_token reads `settings or get_settings()` and raises the setup
-        # hint when the token is empty; an explicit access_token overrides both.
-        token = access_token or get_access_token(settings)
+        # Per instance under mcps-host; the env-backed singleton in the plain server.
+        self.settings = settings or get_settings()
+        # An explicit access_token overrides the settings token.
+        token = access_token or get_access_token(self.settings)
         self._http = httpx.Client(
             base_url=API_BASE,
             headers={
