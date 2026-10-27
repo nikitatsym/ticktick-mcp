@@ -1,5 +1,7 @@
 """JSON Schema (operation='schema'): per-op model_json_schema() shape."""
 
+import json
+
 import pytest
 
 from ticktick_mcp.server import _build_schema
@@ -33,10 +35,9 @@ class TestCreateTaskSchema:
         assert "reminders" in iso["description"]
 
     def test_no_unset_leak(self) -> None:
-        import json
         s = json.dumps(self.schema)
-        assert "_Unset" not in s
-        assert "_UNSET" not in s
+        assert "Unset" not in s
+        assert "UNSET" not in s
         assert "PydanticUndefined" not in s
 
 

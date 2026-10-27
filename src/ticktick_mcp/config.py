@@ -34,13 +34,6 @@ def get_settings() -> Settings:
     return _settings
 
 
-def _reset_settings() -> None:
-    """Force re-read from env. Used by tests after monkeypatching."""
-    global _settings
-    _settings = None
-    system_timezone.cache_clear()
-
-
 @lru_cache(maxsize=1)
 def system_timezone() -> str | None:
     """IANA name of the OS timezone, or None if it can't be determined.

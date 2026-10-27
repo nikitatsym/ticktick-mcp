@@ -17,7 +17,7 @@ import pytest
 from ticktick_mcp import tools
 from ticktick_mcp.client import API_BASE, TickTickClient
 from ticktick_mcp.config import get_settings
-from ticktick_mcp.prepare import _prepare_task
+from ticktick_mcp.prepare import prepare_task
 from ticktick_mcp.server import _build_schema
 
 Handler = Callable[[httpx.Request], httpx.Response]
@@ -98,7 +98,7 @@ class TestNoFallback:
         """The env var may be set in the environment; it must change nothing."""
         monkeypatch.setenv("MCP_TICKTICK_TIMEZONE", "Europe/Berlin")
         with pytest.raises(ValueError) as exc:
-            _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
+            prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
         msg = str(exc.value)
         assert "no timeZone" in msg
         assert "MCP_TICKTICK_TIMEZONE" not in msg
@@ -107,7 +107,7 @@ class TestNoFallback:
         assert not hasattr(get_settings(), "mcp_ticktick_timezone")
 
     def test_param_still_normalizes(self) -> None:
-        task = _prepare_task({
+        task = prepare_task({
             "title": "T", "brief": "B",
             "dueDate": "2026-03-15T19:00", "timeZone": "Europe/Berlin",
         })
@@ -117,7 +117,7 @@ class TestNoFallback:
     def test_hint_softened(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("ticktick_mcp.prepare.system_timezone", lambda: "Europe/Berlin")
         with pytest.raises(ValueError) as exc:
-            _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
+            prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
         msg = str(exc.value)
         assert "container artifact" in msg
         assert "Europe/Berlin" in msg
@@ -125,14 +125,14 @@ class TestNoFallback:
     def test_no_hint_without_system_zone(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("ticktick_mcp.prepare.system_timezone", lambda: None)
         with pytest.raises(ValueError) as exc:
-            _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
+            prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-15T19:00"})
         msg = str(exc.value)
         assert "System timezone" not in msg
         assert "no timeZone" in msg
 
     def test_unknown_zone_message_has_no_tbilisi(self) -> None:
         with pytest.raises(ValueError) as exc:
-            _prepare_task({"title": "T", "brief": "B", "timeZone": "Nope/Nope"})
+            prepare_task({"title": "T", "brief": "B", "timeZone": "Nope/Nope"})
         msg = str(exc.value)
         assert "Unknown timezone" in msg
         assert "Tbilisi" not in msg

@@ -1,51 +1,13 @@
-"""Tests for brief extraction, injection, validation, and slim task logic."""
+"""Tests for brief injection, validation, and slim task logic."""
 
 import pytest
 
 from ticktick_mcp.prepare import (
-    _extract_brief,
     _inject_brief,
-    _slim_task,
     _validate_brief,
+    slim_task,
 )
 from ticktick_mcp.types import TaskDict
-
-# ── _extract_brief ────────────────────────────────────────────────────────────
-
-
-def test_extract_brief_from_content() -> None:
-    task: TaskDict = {"content": "stuff <brief>Buy milk</brief> more"}
-    assert _extract_brief(task) == "Buy milk"
-
-
-def test_extract_brief_from_desc() -> None:
-    task: TaskDict = {"desc": "<brief>From desc</brief>"}
-    assert _extract_brief(task) == "From desc"
-
-
-def test_extract_brief_content_takes_priority() -> None:
-    task: TaskDict = {"content": "<brief>From content</brief>", "desc": "<brief>From desc</brief>"}
-    assert _extract_brief(task) == "From content"
-
-
-def test_extract_brief_no_tag() -> None:
-    task: TaskDict = {"content": "no tag here"}
-    assert _extract_brief(task) is None
-
-
-def test_extract_brief_empty() -> None:
-    assert _extract_brief({}) is None
-
-
-def test_extract_brief_strips_whitespace() -> None:
-    task: TaskDict = {"content": "<brief>  padded  </brief>"}
-    assert _extract_brief(task) == "padded"
-
-
-def test_extract_brief_multiline() -> None:
-    task: TaskDict = {"content": "<brief>\nline1\nline2\n</brief>"}
-    assert _extract_brief(task) == "line1\nline2"
-
 
 # ── _inject_brief ─────────────────────────────────────────────────────────────
 
@@ -73,7 +35,7 @@ def test_inject_brief_replaces_all_occurrences() -> None:
     assert result == "<brief>New</brief> mid <brief>New</brief>"
 
 
-# ── _slim_task ────────────────────────────────────────────────────────────────
+# ── slim_task ────────────────────────────────────────────────────────────────
 
 FULL_TASK: TaskDict = {
     "id": "abc123",
@@ -103,7 +65,7 @@ FULL_TASK: TaskDict = {
 
 
 def test_slim_keeps_only_essential_fields() -> None:
-    result = _slim_task(FULL_TASK)
+    result = slim_task(FULL_TASK)
     assert set(result.keys()) == {
         "id", "projectId", "title", "status", "priority",
         "dueDate", "tags", "parentId", "childIds",
@@ -113,14 +75,14 @@ def test_slim_keeps_only_essential_fields() -> None:
 
 
 def test_slim_no_desc_or_content() -> None:
-    result = _slim_task(FULL_TASK)
+    result = slim_task(FULL_TASK)
     assert "content" not in result
     assert "desc" not in result
     assert "brief" not in result
 
 
 def test_slim_strips_verbose_fields() -> None:
-    result = _slim_task(FULL_TASK)
+    result = slim_task(FULL_TASK)
     for field in ("items", "reminders", "repeatFlag", "sortOrder", "etag",
                   "modifiedTime", "timeZone", "isAllDay", "completedTime",
                   "kind", "columnId", "startDate"):
@@ -130,7 +92,7 @@ def test_slim_strips_verbose_fields() -> None:
 def test_slim_missing_optional_fields() -> None:
     """Slim handles tasks that lack optional fields like tags, parentId."""
     minimal: TaskDict = {"id": "x", "title": "Minimal", "status": 0}
-    result = _slim_task(minimal)
+    result = slim_task(minimal)
     assert result == {"id": "x", "title": "Minimal", "status": 0}
 
 

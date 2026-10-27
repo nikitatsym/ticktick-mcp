@@ -11,7 +11,7 @@ import httpx
 import pytest
 
 from ticktick_mcp.client import API_BASE, TickTickClient, TickTickError
-from ticktick_mcp.prepare import _verify_response
+from ticktick_mcp.prepare import verify_response
 
 Handler = Callable[[httpx.Request], httpx.Response]
 
@@ -115,8 +115,8 @@ class TestErrorStatusStillCarriesBody:
 class TestVerifyResponseNonDict:
     def test_list_response(self) -> None:
         with pytest.raises(ValueError, match="cannot verify"):
-            _verify_response({"title": "x"}, ["not", "a", "dict"])
+            verify_response({"title": "x"}, ["not", "a", "dict"])
 
     def test_string_response(self) -> None:
         with pytest.raises(ValueError, match="cannot verify"):
-            _verify_response({"title": "x"}, "not a dict")
+            verify_response({"title": "x"}, "not a dict")

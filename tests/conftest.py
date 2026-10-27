@@ -1,19 +1,20 @@
 """Shared pytest fixtures.
 
-`reset_settings` autouse fixture clears the lazy `_settings` cache before
-every test so `monkeypatch.setenv(...)` reliably propagates through
-`get_settings()` without test ordering issues.
+The autouse fixture drops the cached settings and the OS timezone before and
+after every test so `monkeypatch.setenv(...)` reliably reaches `get_settings()`.
 """
 
 from collections.abc import Iterator
 
 import pytest
 
-from ticktick_mcp.config import _reset_settings
+from ticktick_mcp import config
 
 
 @pytest.fixture(autouse=True)
 def reset_settings() -> Iterator[None]:
-    _reset_settings()
+    config._settings = None
+    config.system_timezone.cache_clear()
     yield
-    _reset_settings()
+    config._settings = None
+    config.system_timezone.cache_clear()

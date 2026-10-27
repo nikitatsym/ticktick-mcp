@@ -36,7 +36,7 @@ from pydantic_core import PydanticUndefined
 
 from . import tools as _tools_module
 from .client import TickTickError
-from .registry import _UNSET, ROOT, Group, OpFn, TaggedFn, _Unset
+from .registry import ROOT, UNSET, Group, OpFn, TaggedFn, Unset
 
 ToolFn: TypeAlias = Callable[..., Any]
 ParamsModel: TypeAlias = type[BaseModel]
@@ -83,8 +83,8 @@ def _to_pascal(name: str) -> str:
 def _build_params_model(fn: TaggedFn) -> ParamsModel:
     """Build a Pydantic model from a function's signature.
 
-    Parameters without a default become required fields. Defaults of `_UNSET`
-    are stored as `Field(default_factory=lambda: _UNSET)` so the sentinel
+    Parameters without a default become required fields. Defaults of `UNSET`
+    are stored as `Field(default_factory=lambda: UNSET)` so the sentinel
     materializes only at validation time; combined with
     `model_dump(exclude_unset=True)` in `_coerce_call`, the omitted state
     flows through unchanged to the tool body. `extra='forbid'` rejects
@@ -97,8 +97,8 @@ def _build_params_model(fn: TaggedFn) -> ParamsModel:
         ann = hints.get(name, Any)
         if param.default is inspect.Parameter.empty:
             fields[name] = (ann, ...)
-        elif isinstance(param.default, _Unset):
-            fields[name] = (ann, Field(default_factory=lambda: _UNSET))
+        elif isinstance(param.default, Unset):
+            fields[name] = (ann, Field(default_factory=lambda: UNSET))
         else:
             fields[name] = (ann, param.default)
 
@@ -183,7 +183,7 @@ def _type_to_str(hint: Any) -> str:
 def _format_param_for_help(name: str, field: Any) -> str:
     """Render one parameter line: `name: type` (required) or `name?: type[=default]`.
 
-    Factory-defaulted fields — including `_UNSET` — render as `name?: type`
+    Factory-defaulted fields — including `UNSET` — render as `name?: type`
     with no `=…` suffix. Without this guard, Pydantic's `PydanticUndefined`
     would leak into help, which is a real discovery bug for agents.
     """
@@ -435,13 +435,13 @@ def _render_group_doc(group_name: str, doc: str, ops: dict[str, OpFn]) -> str:
 
 
 def _register_tools() -> None:
-    """Discover @_op-decorated functions, build Pydantic models, register MCP tools."""
+    """Discover @op-decorated functions, build Pydantic models, register MCP tools."""
     groups: dict[str, tuple[Group, dict[str, OpFn]]] = {}
 
     for name, raw_fn in inspect.getmembers(_tools_module, inspect.isfunction):
         if not hasattr(raw_fn, "_mcp_group"):
             continue
-        # hasattr just confirmed the @_op tag; the write below makes the rest true.
+        # hasattr just confirmed the @op tag; the write below makes the rest true.
         fn = cast(OpFn, raw_fn)
         group: Group = fn._mcp_group
         fn._params_model = _build_params_model(fn)

@@ -1,9 +1,8 @@
 """Data preparation, validation, and formatting for TickTick tasks and projects.
 
-The first line of `_prepare_task`/`_prepare_project` strips `_UNSET` from the
-incoming dict so every existing `is not None` check sees "key absent" instead
-of "sentinel present." This lets us keep the v1-shape payload loop unchanged
-while adopting the omitted-vs-cleared semantics on the public surface.
+The first line of `prepare_task`/`prepare_project` strips `UNSET` from the
+incoming dict so every `is not None` check sees "key absent" instead of
+"sentinel present", which keeps the omitted-vs-cleared distinction.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .config import get_settings, system_timezone
-from .registry import _UNSET
+from .registry import UNSET
 from .types import SlimTaskDict, TaskDict
 
 _BRIEF_RE = re.compile(r"<brief>(.*?)</brief>", re.DOTALL)
@@ -46,17 +45,7 @@ _PROJECT_API_FIELDS = ("name", "color", "viewMode", "kind")
 # ── Brief tag ────────────────────────────────────────────────────────────────
 
 
-def _extract_brief(task: TaskDict) -> str | None:
-    """Extract <brief>...</brief> from content or desc field."""
-    for val in (task.get("content"), task.get("desc")):
-        if val:
-            m = _BRIEF_RE.search(val)
-            if m:
-                return m.group(1).strip()
-    return None
-
-
-def _slim_task(task: TaskDict) -> SlimTaskDict:
+def slim_task(task: TaskDict) -> SlimTaskDict:
     """Strip task to essential fields for list context."""
     return cast(SlimTaskDict, {k: v for k, v in task.items() if k in _SLIM_FIELDS})
 
@@ -247,16 +236,16 @@ def _coerce_bool(v: Any) -> bool:
     return bool(v)
 
 
-def _prepare_task(params: dict[str, Any], is_update: bool = False) -> dict[str, Any]:
+def prepare_task(params: dict[str, Any], is_update: bool = False) -> dict[str, Any]:
     """Build the validated task payload for the TickTick API.
 
     Assembles the wire dict from `params` and validates it on the way: the
     brief rule, date normalization against the `timeZone` param, isAllDay
     inference and its fail-fast rules, priorities, and reminder triggers.
     """
-    # 1. Strip the _UNSET sentinel so existing `is not None` checks below
+    # 1. Strip the UNSET sentinel so existing `is not None` checks below
     #    correctly see "key absent" for omitted params.
-    params = {k: v for k, v in params.items() if v is not _UNSET}
+    params = {k: v for k, v in params.items() if v is not UNSET}
 
     brief_param = params.pop("brief", None)
 
@@ -353,7 +342,7 @@ def _prepare_task(params: dict[str, Any], is_update: bool = False) -> dict[str, 
             "Call operation='schema', params={'op': 'CreateTask'} for the full spec."
         )
 
-    # 9. Build the wire payload — _UNSET is gone, None is still dropped,
+    # 9. Build the wire payload — UNSET is gone, None is still dropped,
     #    unknown fields silently ignored (forward-compat with new API fields).
     task: dict[str, Any] = {}
     for key in _TASK_API_FIELDS:
@@ -362,12 +351,12 @@ def _prepare_task(params: dict[str, Any], is_update: bool = False) -> dict[str, 
     return task
 
 
-def _prepare_project(
+def prepare_project(
     params: dict[str, Any],
     is_update: bool = False,
 ) -> dict[str, Any]:
     """Build a validated project dict for the API."""
-    params = {k: v for k, v in params.items() if v is not _UNSET}
+    params = {k: v for k, v in params.items() if v is not UNSET}
     if params.get("viewMode") is not None:
         _validate_enum(params["viewMode"], "viewMode", {"list", "kanban", "timeline"})
     if params.get("kind") is not None:
@@ -384,7 +373,7 @@ def _prepare_project(
     return proj
 
 
-def _verify_response(sent: dict[str, Any], received: Any) -> None:
+def verify_response(sent: dict[str, Any], received: Any) -> None:
     """Check that every non-empty field we sent is present in the API response; raises if it is not a dict."""
     resource = received if isinstance(received, dict) else None
     if resource is None:

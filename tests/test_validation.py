@@ -1,21 +1,23 @@
 """Tests for input validation, normalization, and response verification."""
 
+import inspect
 from zoneinfo import ZoneInfo
 
 import pytest
 
+import ticktick_mcp
 from ticktick_mcp import server as server_module
 from ticktick_mcp import tools as tools_module
 from ticktick_mcp.prepare import (
     _normalize_date,
-    _prepare_project,
-    _prepare_task,
     _validate_enum,
     _validate_priority,
     _validate_timezone,
-    _verify_response,
+    prepare_project,
+    prepare_task,
+    verify_response,
 )
-from ticktick_mcp.registry import Group
+from ticktick_mcp.registry import ROOT, Group
 
 # ── _validate_timezone ───────────────────────────────────────────────────────
 
@@ -137,64 +139,64 @@ class TestValidateEnum:
             _validate_enum("HABIT", "kind", {"TASK", "NOTE"})
 
 
-# ── _verify_response ────────────────────────────────────────────────────────
+# ── verify_response ────────────────────────────────────────────────────────
 
 
 class TestVerifyResponse:
     def test_all_fields_present(self) -> None:
-        _verify_response(
+        verify_response(
             {"title": "T", "priority": 3},
             {"title": "T", "priority": 3, "id": "x"},
         )
 
     def test_field_dropped_raises(self) -> None:
         with pytest.raises(ValueError, match="dueDate"):
-            _verify_response(
+            verify_response(
                 {"title": "T", "dueDate": "2026-03-20T00:00:00.000+0000"},
                 {"title": "T"},
             )
 
     def test_content_skipped(self) -> None:
-        _verify_response({"title": "T", "content": "text"}, {"title": "T"})
+        verify_response({"title": "T", "content": "text"}, {"title": "T"})
 
     def test_desc_skipped(self) -> None:
-        _verify_response({"title": "T", "desc": "d"}, {"title": "T"})
+        verify_response({"title": "T", "desc": "d"}, {"title": "T"})
 
     def test_cleared_list_absent_ok(self) -> None:
-        _verify_response({"title": "T", "tags": []}, {"title": "T"})
+        verify_response({"title": "T", "tags": []}, {"title": "T"})
 
     def test_nonempty_list_dropped_raises(self) -> None:
         with pytest.raises(ValueError, match="tags"):
-            _verify_response({"title": "T", "tags": ["a"]}, {"title": "T"})
+            verify_response({"title": "T", "tags": ["a"]}, {"title": "T"})
 
     def test_non_dict_response_raises(self) -> None:
         with pytest.raises(ValueError, match="cannot verify"):
-            _verify_response({"title": "T"}, "some string")
+            verify_response({"title": "T"}, "some string")
 
     def test_none_response_raises(self) -> None:
         with pytest.raises(ValueError, match="cannot verify"):
-            _verify_response({"title": "T"}, None)
+            verify_response({"title": "T"}, None)
 
     def test_extra_fields_in_response_ok(self) -> None:
-        _verify_response({"title": "T"}, {"title": "T", "id": "x", "status": 0})
+        verify_response({"title": "T"}, {"title": "T", "id": "x", "status": 0})
 
 
-# ── _prepare_task ────────────────────────────────────────────────────────────
+# ── prepare_task ────────────────────────────────────────────────────────────
 
 
 class TestPrepareTask:
     def test_create_basic(self) -> None:
-        task = _prepare_task({"title": "Buy milk", "brief": "Buy milk"})
+        task = prepare_task({"title": "Buy milk", "brief": "Buy milk"})
         assert task["title"] == "Buy milk"
         assert "<brief>Buy milk</brief>" in task["content"]
         assert "brief" not in task
 
     def test_create_normalizes_date_only(self) -> None:
-        task = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
+        task = prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
         assert task["dueDate"] == "2026-03-20T00:00:00.000+0000"
 
     def test_create_normalizes_datetime_with_tz(self) -> None:
-        task = _prepare_task({
+        task = prepare_task({
             "title": "T", "brief": "B",
             "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Dubai",
         })
@@ -203,25 +205,25 @@ class TestPrepareTask:
 
     def test_create_rejects_manual_offset(self) -> None:
         with pytest.raises(ValueError, match="manual UTC offsets"):
-            _prepare_task({
+            prepare_task({
                 "title": "T", "brief": "B",
                 "dueDate": "2026-03-20T10:00:00+0300",
             })
 
     def test_create_validates_priority(self) -> None:
         with pytest.raises(ValueError, match="priority must be"):
-            _prepare_task({"title": "T", "brief": "B", "priority": 2})
+            prepare_task({"title": "T", "brief": "B", "priority": 2})
 
     def test_create_coerces_priority_str(self) -> None:
-        task = _prepare_task({"title": "T", "brief": "B", "priority": "3"})
+        task = prepare_task({"title": "T", "brief": "B", "priority": "3"})
         assert task["priority"] == 3
 
     def test_create_requires_title(self) -> None:
         with pytest.raises(ValueError, match="title"):
-            _prepare_task({"brief": "B"})
+            prepare_task({"brief": "B"})
 
     def test_update_basic(self) -> None:
-        task = _prepare_task(
+        task = prepare_task(
             {"projectId": "p1", "title": "New"},
             is_update=True,
         )
@@ -230,7 +232,7 @@ class TestPrepareTask:
         assert "taskId" not in task
 
     def test_skips_none_values(self) -> None:
-        task = _prepare_task({
+        task = prepare_task({
             "title": "T", "brief": "B",
             "dueDate": None, "priority": None,
         })
@@ -238,100 +240,100 @@ class TestPrepareTask:
         assert "priority" not in task
 
     def test_coerces_isAllDay_bool(self) -> None:
-        task = _prepare_task({"title": "T", "brief": "B", "isAllDay": True})
+        task = prepare_task({"title": "T", "brief": "B", "isAllDay": True})
         assert task["isAllDay"] is True
 
     def test_coerces_isAllDay_str(self) -> None:
-        task = _prepare_task({"title": "T", "brief": "B", "isAllDay": "true"})
+        task = prepare_task({"title": "T", "brief": "B", "isAllDay": "true"})
         assert task["isAllDay"] is True
 
     def test_coerces_isAllDay_str_false(self) -> None:
-        task = _prepare_task({"title": "T", "brief": "B", "isAllDay": "false"})
+        task = prepare_task({"title": "T", "brief": "B", "isAllDay": "false"})
         assert task["isAllDay"] is False
 
     def test_date_only_auto_isAllDay(self) -> None:
-        task = _prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
+        task = prepare_task({"title": "T", "brief": "B", "dueDate": "2026-03-20"})
         assert task["isAllDay"] is True
 
     def test_date_only_explicit_isAllDay_false(self) -> None:
-        task = _prepare_task({
+        task = prepare_task({
             "title": "T", "brief": "B",
             "dueDate": "2026-03-20", "isAllDay": False,
         })
         assert task["isAllDay"] is False
 
     def test_datetime_no_auto_isAllDay(self) -> None:
-        task = _prepare_task({
+        task = prepare_task({
             "title": "T", "brief": "B",
             "dueDate": "2026-03-20T10:00:00", "timeZone": "Asia/Dubai",
         })
         assert "isAllDay" not in task
 
     def test_startDate_date_only_auto_isAllDay(self) -> None:
-        task = _prepare_task({"title": "T", "brief": "B", "startDate": "2026-03-20"})
+        task = prepare_task({"title": "T", "brief": "B", "startDate": "2026-03-20"})
         assert task["isAllDay"] is True
 
     def test_does_not_mutate_input(self) -> None:
         params = {"title": "T", "brief": "B", "dueDate": "2026-03-20"}
-        _prepare_task(params)
+        prepare_task(params)
         assert params["dueDate"] == "2026-03-20"
         assert "brief" in params
 
     def test_datetime_no_tz_rejected(self) -> None:
         with pytest.raises(ValueError, match="no timeZone"):
-            _prepare_task({
+            prepare_task({
                 "title": "T", "brief": "B",
                 "dueDate": "2026-03-20T10:00:00",
             })
 
     def test_update_no_brief_no_content_skips_validation(self) -> None:
         """Update with neither brief nor content should not trigger brief validation."""
-        task = _prepare_task(
+        task = prepare_task(
             {"projectId": "p1", "title": "New"},
             is_update=True,
         )
         assert task["title"] == "New"
 
 
-# ── _prepare_project ─────────────────────────────────────────────────────────
+# ── prepare_project ─────────────────────────────────────────────────────────
 
 
 class TestPrepareProject:
     def test_create_basic(self) -> None:
-        result = _prepare_project({"name": "Work"})
+        result = prepare_project({"name": "Work"})
         assert result == {"name": "Work"}
 
     def test_create_with_viewMode(self) -> None:
-        result = _prepare_project({"name": "Work", "viewMode": "kanban"})
+        result = prepare_project({"name": "Work", "viewMode": "kanban"})
         assert result == {"name": "Work", "viewMode": "kanban"}
 
     def test_create_requires_name(self) -> None:
         with pytest.raises(ValueError, match="name"):
-            _prepare_project({"viewMode": "kanban"})
+            prepare_project({"viewMode": "kanban"})
 
     def test_invalid_viewMode(self) -> None:
         with pytest.raises(ValueError, match="viewMode"):
-            _prepare_project({"name": "Work", "viewMode": "grid"})
+            prepare_project({"name": "Work", "viewMode": "grid"})
 
     def test_invalid_kind(self) -> None:
         with pytest.raises(ValueError, match="kind"):
-            _prepare_project({"name": "Work", "kind": "INVALID"})
+            prepare_project({"name": "Work", "kind": "INVALID"})
 
     def test_update_no_require_name(self) -> None:
-        result = _prepare_project({"color": "#ff0000"}, is_update=True)
+        result = prepare_project({"color": "#ff0000"}, is_update=True)
         assert result == {"color": "#ff0000"}
 
     def test_valid_kind(self) -> None:
-        result = _prepare_project({"name": "Notes", "kind": "NOTE"})
+        result = prepare_project({"name": "Notes", "kind": "NOTE"})
         assert result["kind"] == "NOTE"
 
     def test_does_not_mutate_input(self) -> None:
         params = {"name": "Work", "viewMode": "kanban"}
-        _prepare_project(params)
+        prepare_project(params)
         assert params == {"name": "Work", "viewMode": "kanban"}
 
     def test_skips_unknown_fields(self) -> None:
-        result = _prepare_project({"name": "Work", "projectId": "p1"})
+        result = prepare_project({"name": "Work", "projectId": "p1"})
         assert "projectId" not in result
 
 
@@ -339,24 +341,18 @@ class TestPrepareProject:
 
 
 class TestRegistration:
-    def test_import_succeeds(self) -> None:
-        from ticktick_mcp.server import mcp
+    def test_package_exports_hosting_contract(self) -> None:
+        # mcps-host loads the package through exactly these names.
+        assert {"mcp", "Settings", "TickTickClient", "client_var"} <= set(ticktick_mcp.__all__)
+        assert ticktick_mcp.mcp is server_module.mcp
+        assert ticktick_mcp.client_var is tools_module.client_var
 
     def test_all_decorated_functions_have_docstrings(self) -> None:
-        import inspect
-
-        from ticktick_mcp import tools as tools_module
-
         for name, fn in inspect.getmembers(tools_module, inspect.isfunction):
             if hasattr(fn, "_mcp_group"):
-                assert fn.__doc__, f"{name} has @_op but no docstring"
+                assert fn.__doc__, f"{name} has @op but no docstring"
 
     def test_all_groups_have_docs(self) -> None:
-        import inspect
-
-        from ticktick_mcp import tools as tools_module
-        from ticktick_mcp.registry import ROOT
-
         groups = {
             fn._mcp_group
             for _, fn in inspect.getmembers(tools_module, inspect.isfunction)

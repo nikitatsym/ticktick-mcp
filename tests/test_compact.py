@@ -25,7 +25,7 @@ from mcp.types import CallToolResult, TextContent
 from ticktick_mcp import server
 from ticktick_mcp import tools as _tools_module
 from ticktick_mcp.registry import Group, OpFn
-from ticktick_mcp.server import _build_help, _dispatch, _group_ops, _to_pascal
+from ticktick_mcp.server import _build_help, _dispatch, _to_pascal
 from ticktick_mcp.tools import ticktick_delete, ticktick_read, ticktick_write
 
 _create_task = cast(OpFn, _tools_module.create_task)

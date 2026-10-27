@@ -65,7 +65,7 @@ def test_help_search_no_match_message() -> None:
 
 def test_help_question_marker_for_optional() -> None:
     text = _build_help("ticktick_write")
-    # CreateTask projectId is optional (_UNSET default) — should render with ?
+    # CreateTask projectId is optional (UNSET default) — should render with ?
     assert "projectId?:" in text
 
 
@@ -75,7 +75,7 @@ def test_help_required_no_marker() -> None:
     assert "title: str" in text
 
 
-@pytest.mark.parametrize("sentinel", ["_Unset", "_UNSET", "PydanticUndefined"])
+@pytest.mark.parametrize("sentinel", ["Unset", "UNSET", "PydanticUndefined"])
 def test_no_sentinel_leakage(sentinel: str) -> None:
     for group in ("ticktick_read", "ticktick_write", "ticktick_delete"):
         text = _build_help(group)

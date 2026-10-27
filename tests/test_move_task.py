@@ -25,7 +25,7 @@ POST_TASK: Route = ("POST", "/open/v1/task")
 DELETE_SRC: Route = ("DELETE", "/open/v1/project/src/task/t1")
 
 # Adversarial on purpose: the manual +0400 offset and the brief-less content
-# are both rejected by _prepare_task, which MoveTask must bypass.
+# are both rejected by prepare_task, which MoveTask must bypass.
 SRC_TASK: dict[str, Any] = {
     "id": "t1",
     "projectId": "src",
