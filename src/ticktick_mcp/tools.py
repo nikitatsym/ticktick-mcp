@@ -133,12 +133,7 @@ def get_today(
 @op(ticktick_read)
 def get_inbox() -> ProjectDataDict:
     """Get the Inbox project with all its tasks. The Inbox is NOT included in ListProjects."""
-    data = _get_client().get_inbox_with_data()
-    if "tasks" in data:
-        out: dict[str, Any] = dict(data)
-        out["tasks"] = [slim_task(t) for t in data.get("tasks") or []]
-        return cast(ProjectDataDict, out)
-    return data
+    return _slim_project_data(_get_client().get_inbox_with_data())
 
 
 @op(ticktick_read)
@@ -166,12 +161,15 @@ def get_project_with_data(
     projectId: Annotated[str, Field(description="Project ID returned by ListProjects.")],
 ) -> ProjectDataDict:
     """Get a TickTick project with all its tasks and columns. For inbox tasks, use GetInbox."""
-    data = _get_client().get_project_with_data(projectId)
-    if "tasks" in data:
-        out: dict[str, Any] = dict(data)
-        out["tasks"] = [slim_task(t) for t in data.get("tasks") or []]
-        return cast(ProjectDataDict, out)
-    return data
+    return _slim_project_data(_get_client().get_project_with_data(projectId))
+
+
+def _slim_project_data(data: ProjectDataDict) -> ProjectDataDict:
+    if "tasks" not in data:
+        return data
+    out: dict[str, Any] = dict(data)
+    out["tasks"] = [slim_task(t) for t in data.get("tasks") or []]
+    return cast(ProjectDataDict, out)
 
 
 @op(ticktick_read)
@@ -367,12 +365,17 @@ def complete_task(
     return f"Task {taskId} marked as completed."
 
 
+_ProjectColor = Annotated[str | None, Field(description="Hex color, e.g. '#FF0000'.")]
+_ProjectViewMode = Annotated[str | None, Field(description="One of: 'list', 'kanban', 'timeline'.")]
+_ProjectKind = Annotated[str | None, Field(description="One of: 'TASK', 'NOTE'.")]
+
+
 @op(ticktick_write)
 def create_project(
     name: Annotated[str, Field(description="Project name.")],
-    color: Annotated[str | None, Field(description="Hex color, e.g. '#FF0000'.")] = cast(str | None, UNSET),
-    viewMode: Annotated[str | None, Field(description="One of: 'list', 'kanban', 'timeline'.")] = cast(str | None, UNSET),
-    kind: Annotated[str | None, Field(description="One of: 'TASK', 'NOTE'.")] = cast(str | None, UNSET),
+    color: _ProjectColor = cast(str | None, UNSET),
+    viewMode: _ProjectViewMode = cast(str | None, UNSET),
+    kind: _ProjectKind = cast(str | None, UNSET),
 ) -> ProjectDict:
     """Create a new TickTick project. viewMode: list, kanban, or timeline. kind: TASK or NOTE."""
     proj = prepare_project(dict(locals()))
@@ -385,9 +388,9 @@ def create_project(
 def update_project(
     projectId: Annotated[str, Field(description="Project ID.")],
     name: Annotated[str | None, Field(description="New project name.")] = cast(str | None, UNSET),
-    color: Annotated[str | None, Field(description="Hex color, e.g. '#FF0000'.")] = cast(str | None, UNSET),
-    viewMode: Annotated[str | None, Field(description="One of: 'list', 'kanban', 'timeline'.")] = cast(str | None, UNSET),
-    kind: Annotated[str | None, Field(description="One of: 'TASK', 'NOTE'.")] = cast(str | None, UNSET),
+    color: _ProjectColor = cast(str | None, UNSET),
+    viewMode: _ProjectViewMode = cast(str | None, UNSET),
+    kind: _ProjectKind = cast(str | None, UNSET),
 ) -> ProjectDict:
     """Update an existing TickTick project. viewMode: list, kanban, or timeline. kind: TASK or NOTE."""
     proj = prepare_project(dict(locals()), is_update=True)

@@ -6,62 +6,21 @@ GetToday computes the day boundaries in the zone the caller passes.
 
 from __future__ import annotations
 
-import json
-from collections.abc import Callable
 from datetime import datetime, tzinfo
 from typing import Any
 
 import httpx
 import pytest
+from api_fixtures import POST_TASK, Api, Route, install, reply
 
 from ticktick_mcp import tools
-from ticktick_mcp.client import API_BASE, TickTickClient
 from ticktick_mcp.config import get_settings
 from ticktick_mcp.prepare import prepare_task
 from ticktick_mcp.server import _build_schema
 
-Handler = Callable[[httpx.Request], httpx.Response]
-Route = tuple[str, str]
-
 LIST_PROJECTS: Route = ("GET", "/open/v1/project")
-POST_TASK: Route = ("POST", "/open/v1/task")
 DELETE_PROBE: Route = ("DELETE", "/open/v1/project/inbox/task/probe")
 INBOX_DATA: Route = ("GET", "/open/v1/project/inbox/data")
-
-
-class Api:
-    """MockTransport backend: records (method, path) in order, replies per route."""
-
-    def __init__(self, routes: dict[Route, Handler]) -> None:
-        self.routes = routes
-        self.calls: list[Route] = []
-        self.bodies: list[Any] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        key: Route = (request.method, request.url.path)
-        self.calls.append(key)
-        self.bodies.append(json.loads(request.content) if request.content else None)
-        handler = self.routes.get(key)
-        if handler is None:
-            raise AssertionError(f"unrouted request {key}")
-        return handler(request)
-
-
-def reply(response: httpx.Response) -> Handler:
-    def handler(request: httpx.Request) -> httpx.Response:
-        return response
-
-    return handler
-
-
-def install(monkeypatch: pytest.MonkeyPatch, api: Api) -> None:
-    monkeypatch.setenv("TICKTICK_ACCESS_TOKEN", "test-token")
-    client = TickTickClient()
-    client._http = httpx.Client(
-        base_url=API_BASE,
-        transport=httpx.MockTransport(api),
-    )
-    monkeypatch.setattr(tools, "_client", client)
 
 
 def inbox_only(tasks: list[dict[str, Any]]) -> Api:
