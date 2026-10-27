@@ -385,17 +385,18 @@ def _prepare_project(
 
 
 def _verify_response(sent: dict[str, Any], received: Any) -> None:
-    """Check that all keys we sent are present in the API response; raises if it is not a dict."""
+    """Check that every non-empty field we sent is present in the API response; raises if it is not a dict."""
     resource = received if isinstance(received, dict) else None
     if resource is None:
         raise ValueError(
             f"API returned {type(received).__name__} instead of the updated resource; "
             "cannot verify the write was applied."
         )
-    for key in sent:
+    for key, value in sent.items():
         if key in _SKIP_VERIFY:
             continue
-        if key not in resource:
+        # TickTick omits empty fields from responses, so a cleared value comes back absent.
+        if key not in resource and value not in ([], ""):
             raise ValueError(
                 f"API silently dropped '{key}'. The resource was created/updated "
                 "but the field was ignored. Check the value format."

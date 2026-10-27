@@ -160,6 +160,13 @@ class TestVerifyResponse:
     def test_desc_skipped(self) -> None:
         _verify_response({"title": "T", "desc": "d"}, {"title": "T"})
 
+    def test_cleared_list_absent_ok(self) -> None:
+        _verify_response({"title": "T", "tags": []}, {"title": "T"})
+
+    def test_nonempty_list_dropped_raises(self) -> None:
+        with pytest.raises(ValueError, match="tags"):
+            _verify_response({"title": "T", "tags": ["a"]}, {"title": "T"})
+
     def test_non_dict_response_raises(self) -> None:
         with pytest.raises(ValueError, match="cannot verify"):
             _verify_response({"title": "T"}, "some string")
